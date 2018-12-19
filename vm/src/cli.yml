@@ -1,0 +1,25 @@
+name: starlight
+version: "0.0.1"
+author: SUZUKI Tetsuya <tetsuya.suzuki@gmail.com>
+about: Yet another Erlang VM
+args:
+    - config:
+        short: c
+        long: config
+        value_name: FILE
+        help: Sets a custom config file
+        takes_value: true
+    - INPUT:
+        help: Sets the input file to use
+        required: true
+        index: 1
+    - debug:
+        short: d
+        long: debug
+        multiple: false
+        help: print debug message
+    - verbose:
+        short: v
+        long: verbose
+        multiple: false
+        help: print verbose message

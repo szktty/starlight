@@ -1,0 +1,10 @@
+[package]
+name = "strlrun"
+version = "0.1.0"
+authors = ["SUZUKI Tetsuya <tetsuya.suzuki@gmail.com>"]
+
+[dependencies]
+serde = "1.0"
+serde_derive = "1.0"
+serde_json = "1.0"
+clap = {version = "2.32", features = ["yaml"]}

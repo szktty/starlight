@@ -1,0 +1,212 @@
+########################################################################
+# Permission is hereby granted, free of charge, to any person
+# obtaining a copy of this file, to deal in the File without
+# restriction, including without limitation the rights to use,
+# copy, modify, merge, publish, distribute, sublicense, and/or
+# sell copies of the File, and to permit persons to whom the
+# File is furnished to do so, subject to the following condition:
+#
+# THE FILE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+# OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+# IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+# DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+# OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE FILE OR
+# THE USE OR OTHER DEALINGS IN THE FILE.
+
+########################################################################
+# The standard OMakefile.
+# You will usually need to modify this file for your project.
+
+########################################################################
+# Phony targets are scoped, so you probably want to declare them first.
+#
+
+.PHONY: all install uninstall clean
+
+########################################################################
+# Subdirectories.
+# You may want to include some subdirectories in this project.
+# If so, define the subdirectory targets and uncomment this section.
+#
+
+# .SUBDIRS:
+
+########################################################################
+# C configuration.
+# Delete this section if you are not building C files.
+#
+
+################################################
+# Configuration.  You might want to modify any of these
+# configuration variables.
+#
+
+# CFLAGS +=
+# ASFLAGS +=
+# LDFLAGS +=
+# INCLUDES +=
+
+################################################
+# Uncomment the following section if you want
+# to build a C program in the current directory.
+#
+
+# CFILES[] =
+#    file1
+#    main
+#
+# MAIN = main
+#
+# .DEFAULT: $(CProgram $(MAIN), $(CFILES))
+
+################################################
+# Uncomment the following section if you want to build a C library
+# in the current directory.
+#
+
+# LIBFILES[] =
+#    file1
+#    file2
+#
+# LIB = libxxx
+#
+# .DEFAULT: $(StaticCLibrary $(LIB), $(LIBFILES))
+
+########################################################################
+# OCaml configuration.
+# Delete this section if you are not building OCaml files.
+#
+
+################################################
+# Configuration.  You may want to modify any of these configuration
+# variables.
+#
+
+#
+# This project requires ocamlfind (default - false).
+#
+USE_OCAMLFIND = true
+#
+OCAMLPACKS[] =
+	core
+	ppx_let
+	yojson
+	unix
+
+#
+# if $(not $(OCAMLFIND_EXISTS))
+#    eprintln(This project requires ocamlfind, but is was not found.)
+#    eprintln(You need to install ocamlfind and run "omake --configure".)
+#    exit 1
+
+#
+# Include path
+#
+# OCAMLINCLUDES +=
+
+#
+# Compile native or byte code? 
+#
+# The default values are defined as follows:
+#
+#NATIVE_ENABLED = true
+NATIVE_ENABLED = true
+#BYTE_ENABLED = $(not $(OCAMLOPT_EXISTS))
+BYTE_ENABLED = false
+
+#
+# Various options
+#
+#OCAMLFLAGS += -g -thread -w A-4-9-40-42-44-45 -warn-error A
+OCAMLFLAGS += -g -thread -w -4-9-40-42-44-45
+# OCAMLCFLAGS   +=
+# OCAMLOPTFLAGS +=
+# OCAML_LINK_FLAGS +=
+# OCAML_BYTE_LINK_FLAGS +=
+# OCAML_NATIVE_LINK_FLAGS +=
+
+#MENHIR_FLAGS += -v --trace
+MENHIR_FLAGS += -v
+
+MENHIR_ENABLED = true
+
+################################################
+# Generated files
+#
+# Workaround for the fact that ocamldep does not pay attention to .mll
+# and .mly files.
+#
+OCamlGeneratedFiles(parser.ml lexer.ml)
+
+################################################
+# Build an OCaml library
+#
+
+# FILES[] =
+#    file1
+#    file2
+#
+# LIB = main
+#
+# .DEFAULT: $(OCamlLibrary $(LIB), $(FILES))
+
+################################################
+# Build an OCaml program
+#
+
+if $(not $(defined PREFIX))
+	PREFIX = /usr/local
+	export
+
+FILES[] =
+	annot
+	ast
+	ast0
+	ast_to_sexp
+	bitstr
+	block_tag
+	bytecode
+	common
+	compiler
+	conf
+	file
+	id
+	lambda
+	lambda0
+	lambda_to_sexp
+	lexer
+	located
+	location
+	opcode
+	parser
+	position
+	seplist
+	strl
+	xlist
+	xsexp
+
+PROGRAM = strl
+# OCAML_LIBS +=
+# OCAML_CLIBS +=
+# OCAML_OTHER_LIBS +=
+# OCAML_LIB_FLAGS +=
+#
+OCamlProgram($(PROGRAM), $(FILES))
+
+all: $(PROGRAM)
+	mv $(PROGRAM).opt $(PROGRAM)
+
+.DEFAULT: all
+
+install: $(PROGRAM) $(OCamlProgramCopy install, $(PREFIX)/bin, $(PROGRAM))
+
+uninstall:
+	rm -f $(PREFIX)/bin/$(PROGRAM)
+
+clean:
+	rm -rf *.automaton *.conflicts *.annot *.opt *.omc *.cmi *.cmo *.cmt *.cmti *.cmx *.o $(PROGRAM) parser.ml parser.mli lexer.ml
+
+# omake xxx.auto.mli creates the mli file from xxx.ml automatically
+%.auto.mli: %.ml
+	$(OCamlC) -i -c $< > $@

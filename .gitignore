@@ -1,0 +1,46 @@
+*.annot
+*.cmo
+*.cma
+*.cmi
+*.a
+*.o
+*.cmt
+*.cmti
+*.cmx
+*.cmxs
+*.cmxa
+*.omc
+*.opt
+.omakedb
+.omakedb.lock
+
+# ocamlbuild working directory
+_build/
+
+# ocamlbuild targets
+*.byte
+*.native
+
+# oasis generated files
+setup.data
+setup.log
+
+# menhir generated files
+*parser.ml
+*parser.mli
+*lexer.ml
+*lexer.mli
+*.automaton
+*.conflicts
+
+# generated programs
+strl
+strlrun
+*.strlc
+
+# others
+.*.swp
+
+/vm/target
+/vm/**/*.rs.bk
+/vm/Cargo.lock
