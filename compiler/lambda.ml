@@ -9,6 +9,15 @@ open Lambda_t
 let nomatch after = 
   ev_after (Ast.loc after) after No_match
 
+let genlists_mname =
+  "strl_genlists"
+
+let g_mod name =
+  Get_global (Atom name)
+
+let g_mod_prop mname fname =
+  Get_prop (g_mod mname, (Atom fname))
+
 let rec from_node node =
   let gen = Id.gen () in
   let self = ref "" in
@@ -457,15 +466,13 @@ let rec from_node node =
                 | _ -> cgens, f exp :: conds
               end
             | List_compr_gen cgen ->
-              let gen_var = Id.next gen "*list*" in
-              let elt_var = Id.next gen "*elt*" in
               begin match cgen.gen_exp with
                 | List exp ->
                   Option.iter exp.list_tail ~f:(fun _ ->
                       failwith "bad generator, list tail");
-                  (gen_var, elt_var, cgen.gen_ptn, f cgen.gen_exp) :: cgens, conds
+                  (cgen.gen_ptn, f cgen.gen_exp) :: cgens, conds
                 | Var _ ->
-                  (gen_var, elt_var, cgen.gen_ptn, f cgen.gen_exp) :: cgens, conds
+                  (cgen.gen_ptn, f cgen.gen_exp) :: cgens, conds
                 | _ -> failwith "bad generator, not list"
               end
             | Binary_compr_gen _ ->
@@ -473,31 +480,54 @@ let rec from_node node =
             | _ -> failwith "bad filter")
     in
 
-    let l_gens = List.map cgens
-        ~f:(fun (gen, elt, _, exp) -> gen, elt, exp) in
+    (* create generator *)
+    let gen_fun = g_mod_prop genlists_mname "create" in
+    let next_fun = g_mod_prop genlists_mname "next" in
+    let add_fun = g_mod_prop genlists_mname "add" in
+    let collect_fun = g_mod_prop genlists_mname "collect" in
+
+    let gen_exps = List.map cgens ~f:(fun (_, exp) -> exp) in
+    let l_gen = Apply (gen_fun,
+                       [Make_block (Block_tag.Tuple, gen_exps)]) in
+    let gen_var = Id.next gen "*listgen*" in
+
+    (* body *)
+    let l_body = Apply (add_fun, [Local gen_var; f com.compr_exp]) in
+
+    (* filter *)
+    let next_var = Id.next gen "*listnext*" in
     let l_cond =
       List.fold_right conds
-        ~init:(Bool true)
+        ~init:l_body
         ~f:(fun cond action -> If (cond, action, Bool false))
     in
     let l_filter =
       List.fold_right cgens
-        ~init:l_cond
-        ~f:(fun (_, elt, ptn, _) action ->
+        ~init:(List.length cgens - 1, l_cond)
+        ~f:(fun (ptn, _) (i, action) ->
             let exit = new_exit () in
             let case =
               f_case
                 ~exit
-                ~value:(Local elt)
+                ~value:(Get_field (Local next_var, i)) 
                 ~ptn
                 ~action in
-            Catch (case, [(exit, Bool false)]))
+            i - 1, Catch (case, [(exit, Nop)]))
+      |> Tuple2.get2
     in
-    List_compr {
-      lcompr_gens = l_gens;
-      lcompr_filter = l_filter;
-      lcompr_body = f com.compr_exp;
-    }
+
+    (* loop *)
+    let get_next = Apply (next_fun, [Local gen_var]) in
+    let l_loop_cond = Test_nonnil (Local next_var) in
+    let l_loop_body =
+      Let ([(next_var, get_next)],
+           Loop (l_loop_cond,
+                 Seq (l_filter,
+                      Set_local (next_var, get_next))))
+    in
+
+    Let ([(gen_var, l_gen)],
+         Seq (l_loop_body, Apply (collect_fun, [Local gen_var])))
 
   and f_decl decl : (Id.t * t) =
     let claus = Seplist.values decl.fun_decl_body in

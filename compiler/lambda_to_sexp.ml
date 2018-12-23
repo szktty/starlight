@@ -58,6 +58,8 @@ let rec to_sexp = function
     Sexp.Atom "no_match"
   | Try (exp, id, action) ->
     Sexp.tagged "try" [Sexp.Atom id; to_sexp action]
+  | Loop (cond, body) ->
+    Sexp.tagged "loop" [to_sexp cond; to_sexp body]
   | Make_block (tag, elts) ->
     Sexp.tagged "make_block"
       (Sexp.Atom (Block_tag.to_string tag) ::
@@ -77,6 +79,8 @@ let rec to_sexp = function
     Sexp.tagged "get_bitstr" [to_sexp value;
                               Sexp.Atom (Bitstr.Repr.spec_to_string spec);
                               to_sexp pos]
+  | Set_local (name, value) ->
+    Sexp.tagged "set_local" [Atom name; to_sexp value]
   | Set_global (key, value) ->
     Sexp.tagged "set_global" [to_sexp key; to_sexp value]
   | Update_rec up ->
@@ -135,16 +139,6 @@ let rec to_sexp = function
     Sexp.tagged "++" [to_sexp a; to_sexp b]
   | List_sub (a, b) ->
     Sexp.tagged "--" [to_sexp a; to_sexp b]
-  | List_compr c ->
-    let gens = List.map c.lcompr_gens
-        ~f:(fun (gen, elt, exp) ->
-            Sexp.List [Sexp.Atom gen; Sexp.Atom elt; to_sexp exp])
-    in
-    Sexp.tagged "list_compr" [
-      Sexp.List gens;
-      to_sexp c.lcompr_filter;
-      to_sexp c.lcompr_body;
-    ]
   | Ok0 ->
     Sexp.Atom "ok0"
   | Ok exps ->
@@ -185,6 +179,8 @@ let rec to_sexp = function
     Sexp.tagged "test_record3" [to_sexp exp1; to_sexp exp2; to_sexp exp3]
   | Test_tuple exp ->
     Sexp.tagged "test_tuple" [to_sexp exp]
+  | Test_nonnil exp ->
+    Sexp.tagged "test_nonnil" [to_sexp exp]
   | Self -> Sexp.Atom "self"
   (* TODO: others *)
   | Nop -> Sexp.Atom "nop"

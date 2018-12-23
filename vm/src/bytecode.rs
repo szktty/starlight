@@ -66,7 +66,7 @@ impl BcConst {
             }
             BcConst::Block(BlockTag::List, vals) => {
                 let elts = vals.iter().map(|val| val.to_value()).collect();
-                Value::List(Box::new(List::from_list(&elts)))
+                Value::List(Rc::new(List::from_list(&elts)))
             }
             _ => panic!("# not impl {:?}", self),
         }

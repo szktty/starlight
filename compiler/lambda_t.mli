@@ -16,12 +16,14 @@ type t =
   | Match of t (* TODO: used? *)
   | No_match
   | For of for_
+  | Loop of t * t (* cond, body *)
   | Apply of t * t list (* fun, args *)
   | Get_global of t (* key *)
   | Get_prop of t * t (* load, key *)
   | Get_field of t * int (* load, index *)
   | Get_rec of t option * string * string (* load, record, field *)
   | Get_bitstr of t * Bitstr.spec * t (* value, spec, pos *)
+  | Set_local of Id.t * t
   | Set_global of t * t (* key, value *)
   | Set_field of t * int * t (* load, index, store *)
   | Set_prop of t * t * t (* load, key, store *)
@@ -44,7 +46,6 @@ type t =
   | List_cons of t * t
   | List_concat of t * t
   | List_sub of t * t
-  | List_compr of list_compr
   | Local of Id.t
   | Atom of string
   | Undef
@@ -78,6 +79,7 @@ type t =
   | Test_record3 of t * t * t
   | Test_ref of t
   | Test_tuple of t
+  | Test_nonnil of t
   | Self
 
 and event = {
@@ -122,10 +124,3 @@ and update = {
 }
 
 and bitstr = (t, t) Bitstr.t
-
-and list_compr = {
-  lcompr_gens : (Id.t * Id.t * t) list; (* list, element, exp *)
-  lcompr_filter : t;
-  lcompr_body : t;
-}
-

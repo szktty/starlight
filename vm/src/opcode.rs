@@ -1,5 +1,6 @@
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum Opcode {
+    Nop,
     LoadLocal(u16),
     LoadConst(u16),
     LoadTrue,
@@ -8,6 +9,7 @@ pub enum Opcode {
     LoadUndef,
     LoadOk,
     LoadError,
+    LoadEmpty(BlockTag),
     LoadSelfFun,
     LoadBitstr(u8, u32),
     StorePopLocal(u16),
@@ -44,6 +46,7 @@ pub enum Opcode {
     Add,
     Add1,
     Sub,
+    TestNonNil,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -63,6 +66,7 @@ pub enum BlockTag {
     Binary,
     Bitstr,
     List,
+    Tuple,
     Process,
     Module,
     Custom,

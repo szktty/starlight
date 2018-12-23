@@ -74,9 +74,8 @@ module Debug = struct
       | List_cons -> "construct list"
       | List_concat -> "++"
       | List_sub -> "--"
-      | List_rev -> "reverse list" 
-      | List_compr_gen i -> sprintf "next element local %d" i
       | Test_tuple -> "test tuple"
+      | Test_nonnil -> "test non nil"
     in
     let align = 32 in
     let descs = List.mapi ops

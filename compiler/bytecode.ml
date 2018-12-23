@@ -143,9 +143,8 @@ module Code = struct
       | List_cons -> `String "ListCons"
       | List_concat -> `String "ListConcat"
       | List_sub -> `String "ListSub"
-      | List_rev -> `String "ListRev"
-      | List_compr_gen i -> tagged "ListComprGen" [`Int i]
       | Test_tuple -> `String "TestTuple"
+      | Test_nonnil -> `String "TestNonNil"
       | _ -> failwith "notimpl"
     in
     let ops = List.map code.ops ~f:op_to in

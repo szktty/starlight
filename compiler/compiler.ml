@@ -77,9 +77,10 @@ module Context = struct
       ~f:(fun name -> sprintf "%s/%d" name ctx.arity)
 
   let get_var ctx name =
-    Option.value_exn (List.findi (vars ctx)
-                        ~f:(fun i name0 -> String.equal name0 name))
-    |> Tuple2.get1
+    match List.findi (vars ctx)
+            ~f:(fun i name0 -> String.equal name0 name) with
+    | Some (i, _) -> i
+    | None -> failwith (sprintf "var '%s' is not found" name)
 
   let equal_consts a b =
     match a, b with
@@ -296,6 +297,27 @@ let compile form =
       add_comment ctx (last_pc ctx) ("end " ^ id);
       to_end := next_pc ctx - !to_end
 
+    | Loop (cond, body) ->
+      let id = Id.next meta "*loop*" in
+
+      (* loophead *)
+      add_comment ctx (next_pc ctx) (sprintf "begin %s" id);
+      let to_begin = ref (next_pc ctx) in
+      add_loophead ctx;
+
+      (* loop *)
+      add_comment ctx (next_pc ctx) (sprintf "%s condition" id);
+      let to_end = ref (next_pc ctx) in
+      f ctx cond;
+      add_branch ctx false to_end;
+      add_comment ctx (next_pc ctx) (sprintf "%s body" id);
+      f ctx body;
+      to_begin := !to_begin - next_pc ctx;
+      add_op ctx (Jump to_begin);
+
+      to_end := last_pc ctx - !to_end;
+      add_comment ctx (last_pc ctx) (sprintf "end %s" id);
+
     | Let (vars, body) ->
       let id = Id.next meta "*block*" in
       add_comment ctx (last_pc ctx) ("begin " ^ id);
@@ -380,6 +402,12 @@ let compile form =
       f ctx exp;
       add_op_pop ctx Set_global
 
+    | Set_local (name, exp) ->
+      let i = get_var ctx name in
+      add_comment ctx (next_pc ctx) (sprintf "set local %d" i);
+      f ctx exp;
+      add_store_local ctx name
+
     | Block (tag, exps) ->
       begin match exps with
         | [] ->
@@ -439,122 +467,6 @@ let compile form =
       f ctx exp;
       add_op ctx Block_size
 
-    | List_compr lc ->
-      let id = Id.next meta "*lcompr*" in
-      add_comment ctx (next_pc ctx) (sprintf "begin lcompr %s" id);
-
-      let list_var = Id.next meta "*list*" in
-      def_var ctx list_var;
-
-      let i_var = Id.next meta "*index*" in
-      def_var ctx i_var;
-
-      let len_var = Id.next meta "*length*" in
-      def_var ctx len_var;
-
-      let elt_var = Id.next meta "*elt*" in
-      def_var ctx elt_var;
-
-      let accu_var = Id.next meta "*accu*" in
-      def_var ctx accu_var;
-
-      (* init list *)
-      add_comment ctx (next_pc ctx)
-        (sprintf "lcompr init list %s" list_var);
-      add_load_undef ctx;
-      add_load_undef ctx;
-      add_make_block ctx Block_tag.List 2;
-      add_store_local ctx list_var;
-
-      (* init accu *)
-      add_comment ctx (next_pc ctx)
-        (sprintf "lcompr init accu %s" accu_var);
-      add_make_block ctx Block_tag.List 0;
-      add_store_local ctx accu_var;
-
-      (* init index *)
-      add_comment ctx (next_pc ctx)
-        (sprintf "lcompr init index %s" i_var);
-      add_load_int ctx 0;
-      add_store_local ctx i_var;
-
-      (* init lists *)
-      let gen_vars =
-        List.map lc.lcompr_gens
-          ~f:(fun (gen_var, elt_var, exp) ->
-              def_var ctx gen_var;
-              def_var ctx elt_var;
-              add_comment ctx (next_pc ctx) (sprintf "lcompr gen %s" gen_var);
-              f ctx exp;
-              add_store_local ctx gen_var;
-              gen_var, elt_var)
-      in
-
-      (* length *)
-      add_comment ctx (next_pc ctx) (sprintf "lcompr length %s" len_var);
-      List.iteri gen_vars
-        ~f:(fun i (var, _) ->
-            add_load_local ctx var;
-            add_op ctx List_len;
-            if i > 0 then
-              add_op_pop ctx Mul);
-      add_store_local ctx len_var;
-
-      (* begin loop *)
-      add_comment ctx (next_pc ctx) (sprintf "begin lcompr %s" id);
-      let loophead = ref (next_pc ctx) in
-      add_loophead ctx;
-
-      (* check loop end *)
-      add_comment ctx (next_pc ctx) (sprintf "check loop end %s" id);
-      add_load_local ctx i_var;
-      add_load_local ctx len_var;
-      add_op_pop ctx Lt;
-      let loop_end = ref (next_pc ctx) in
-      add_comment ctx (next_pc ctx) (sprintf "branch i < n %s" id);
-      add_branch ctx false loop_end;
-
-      (* generate elements *)
-      List.iteri gen_vars
-        ~f:(fun i (list_var, elt_var) ->
-            add_comment ctx (next_pc ctx) (sprintf "lcompr list nth %s" id);
-            add_load_int ctx i;
-            add_comment ctx (next_pc ctx) (sprintf "lcompr list max %s" id);
-            add_load_local ctx len_var;
-            add_comment ctx (next_pc ctx) (sprintf "lcompr generate %s" id);
-            add_op_pop ctx (List_compr_gen (get_var ctx list_var));
-            add_comment ctx (next_pc ctx) "set element";
-            add_store_local ctx elt_var);
-
-      (* update index *)
-      add_comment ctx (next_pc ctx) "begin update index";
-      add_load_local ctx i_var;
-      add_op ctx Add1;
-      add_store_local ctx i_var;
-      add_comment ctx (last_pc ctx) "end update index";
-
-      (* filter *)
-      add_comment ctx (next_pc ctx) (sprintf "lcompr filter %s" id);
-      f ctx lc.lcompr_filter;
-      add_branch ctx false (ref (!loophead - next_pc ctx));
-
-      (* body *)
-      add_comment ctx (next_pc ctx) (sprintf "lcompr body %s" id);
-      f ctx lc.lcompr_body;
-      add_comment ctx (next_pc ctx) (sprintf "lcompr accu %s" id);
-      add_load_local ctx accu_var;
-      add_op_pop ctx List_cons;
-      add_comment ctx (next_pc ctx) (sprintf "lcompr update accu %s" id);
-      add_store_local ctx accu_var;
-      add_jump ctx (ref (!loophead - next_pc ctx));
-
-      (* end loop *)
-      loop_end := next_pc ctx - !loop_end;
-      add_comment ctx (next_pc ctx) (sprintf "lcompr end accu %s" id);
-      add_load_local ctx accu_var;
-      add_op ctx List_rev;
-      add_comment ctx (last_pc ctx) (sprintf "end lcompr %s" id)
-
     | Test_tuple exp ->
       add_comment ctx (next_pc ctx) "test tuple";
       f ctx exp;
@@ -601,6 +513,10 @@ let compile form =
 
     | String s ->
       add_load_const ctx (add_string ctx s)
+
+    | Test_nonnil exp ->
+      f ctx exp;
+      add_op_pop ctx Test_nonnil
 
     | op ->
       failwith (sprintf "notimpl %s\n" (Lambda.to_string op))

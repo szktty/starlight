@@ -60,7 +60,6 @@ type t =
   | List_cons
   | List_concat
   | List_sub
-  | List_rev
-  | List_compr_gen of int
 
   | Test_tuple
+  | Test_nonnil

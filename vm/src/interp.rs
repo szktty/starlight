@@ -208,6 +208,7 @@ impl Interp {
             let op = &ops[ctx.pc];
             //debug!("eval {} {:?}", ctx.pc + 1, &ops[ctx.pc]);
             match op {
+                Opcode::Nop => (),
                 Opcode::LoadConst(i) => ctx.load_const(*i as usize),
                 Opcode::LoadInt(val) => ctx.load(Value::Int(*val as i64)),
                 Opcode::LoadLocal(i) => ctx.load_local(*i as usize),
@@ -217,9 +218,17 @@ impl Interp {
                 Opcode::LoadOk => ctx.load(Value::Atom(Rc::new("ok".to_string()))),
                 Opcode::LoadError => ctx.load(Value::Atom(Rc::new("error".to_string()))),
                 Opcode::LoadBitstr(size, val) => ctx.load(Value::Bitstr32(*size, *val)),
+                Opcode::LoadEmpty(BlockTag::List) => ctx.load(Value::List(Rc::new(List::Nil))),
                 Opcode::StorePopLocal(i) => {
                     let val = ctx.pop();
                     ctx.store(*i as usize, val);
+                }
+                Opcode::GetField(i) => {
+                    let val = ctx.pop();
+                    match val {
+                        Value::Tuple(elts) => ctx.load(elts[*i as usize].clone()),
+                        _ => panic!("# GetField not supported {:?}", val),
+                    }
                 }
                 Opcode::GetProp => {
                     let pname = ctx.pop_string();
@@ -227,7 +236,7 @@ impl Interp {
                     match val {
                         Value::ModuleName(name) => match self.get_module(&name) {
                             Some(m) => match m.fields.get(&pname) {
-                                None => panic!("# GetProp: key {:?} is not found", name),
+                                None => panic!("# GetProp: key {:?} is not found", pname),
                                 Some(val) => ctx.load(val.clone()),
                             },
                             None => panic!("# module {} not found", name),
@@ -290,7 +299,11 @@ impl Interp {
                 Opcode::MakeBlock(BlockTag::List, _) => {
                     let tail = ctx.pop();
                     let head = ctx.pop();
-                    ctx.load(Value::List(Box::new(List::new(head, tail))));
+                    ctx.load(Value::List(Rc::new(List::new(head, tail))));
+                }
+                Opcode::MakeBlock(BlockTag::Tuple, size) => {
+                    let vals = ctx.popn(*size as usize);
+                    ctx.load(Value::Tuple(Rc::new(vals)))
                 }
                 Opcode::Apply(nargs) => {
                     let args = ctx.popn(*nargs as usize);
@@ -376,6 +389,13 @@ impl Interp {
                     match (&a, &b) {
                         (Value::Int(i1), Value::Int(i2)) => ctx.load(Value::Int(i1 - i2)),
                         _ => panic!("# sub: invalid args {:?}, {:?}", a, b),
+                    }
+                }
+                Opcode::TestNonNil => {
+                    let val = ctx.pop();
+                    match val {
+                        Value::Nil => ctx.load(Value::Bool(false)),
+                        _ => ctx.load(Value::Bool(true)),
                     }
                 }
                 op => panic!("# eval: not impl {:?}", op),

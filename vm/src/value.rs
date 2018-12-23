@@ -1,7 +1,8 @@
 use module::Module;
 use opcode::Opcode;
-use std::boxed::Box;
+use std::cell::RefCell;
 use std::fmt;
+use std::iter::Iterator;
 use std::rc::Rc;
 use std::result::Result;
 
@@ -13,7 +14,8 @@ pub enum Value {
     Int(i64),
     String(Rc<String>),
     Nil,
-    List(Box<List>),
+    List(Rc<List>),
+    Tuple(Rc<Vec<Value>>),
     CompiledCode(Rc<CompiledCode>),
     Nif(Rc<Nif>),
     Closure(Rc<Closure>),
@@ -23,6 +25,7 @@ pub enum Value {
     Array(Rc<Vec<Value>>),
     Bitstr32(u8, u32),
     Bitstr(Rc<Bitstr>),
+    ListGenerator(Rc<RefCell<ListGenerator>>),
 }
 
 #[derive(Debug, Clone)]
@@ -133,7 +136,7 @@ impl Bitstr {
 
 impl List {
     pub fn nil_value() -> Value {
-        Value::List(Box::new(List::Nil))
+        Value::List(Rc::new(List::Nil))
     }
 
     pub fn new(value: Value, next: Value) -> List {
@@ -151,7 +154,11 @@ impl List {
     }
 
     pub fn to_value(self) -> Value {
-        Value::List(Box::new(self))
+        Value::List(Rc::new(self))
+    }
+
+    pub fn iter(&self) -> ListIter {
+        ListIter::new(Value::List(Rc::new(self.clone())))
     }
 
     pub fn length(&self) -> Option<usize> {
@@ -220,5 +227,96 @@ impl List {
                 Some(e) => format!("|{}", e),
             }
         )
+    }
+}
+
+pub struct ListIter {
+    cur: Value,
+}
+
+impl ListIter {
+    fn new(list: Value) -> ListIter {
+        ListIter { cur: list }
+    }
+}
+
+impl Iterator for ListIter {
+    type Item = Value;
+
+    fn next(&mut self) -> Option<Value> {
+        let (value, next) = {
+            match &self.cur {
+                Value::List(list) => match &(**list) {
+                    List::Nil => return None,
+                    List::Cons { value, next } => (value.clone(), next.clone()),
+                },
+                _ => return None,
+            }
+        };
+        self.cur = next;
+        Some(value)
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct ListGenerator {
+    lists: Vec<List>,
+    sum: usize,
+    i: usize,
+    accu: Vec<Value>,
+}
+
+impl ListGenerator {
+    pub fn new(lists: Vec<List>) -> ListGenerator {
+        let mut sum = 0;
+        for list in lists.iter() {
+            match list.length() {
+                None => {
+                    sum = 0;
+                    break;
+                }
+                Some(len) => sum += len,
+            }
+        }
+        ListGenerator {
+            lists,
+            sum,
+            i: 0,
+            accu: Vec::new(),
+        }
+    }
+
+    pub fn next(&mut self) -> Option<Vec<Value>> {
+        if self.i >= self.sum {
+            return None;
+        }
+        let mut i = self.i;
+        let mut elts: Vec<Value> = Vec::with_capacity(self.lists.len());
+        for list in self.lists.iter() {
+            match list.length() {
+                None => return None,
+                Some(0) => return None,
+                Some(len) => {
+                    let j = if i == 0 { 0 } else { i - (i / len) * len };
+                    match list.get(j) {
+                        None => return None,
+                        Some(elt) => {
+                            elts.push(elt.clone());
+                            i = if i == 0 { 0 } else { len / i };
+                        }
+                    }
+                }
+            }
+        }
+        self.i += 1;
+        Some(elts)
+    }
+
+    pub fn add(&mut self, value: Value) {
+        self.accu.push(value)
+    }
+
+    pub fn collect(&self) -> Vec<Value> {
+        self.accu.clone()
     }
 }
