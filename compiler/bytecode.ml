@@ -122,6 +122,7 @@ module Code = struct
       | Make_bitstr spec ->
         tagged "MakeBitstr" (bits_spec_json spec)
       | Apply nargs -> tagged "Apply" [`Int nargs]
+      | Spawn -> `String "Spawn"
       | Return -> `String "Return"
       | Return_undef -> `String "ReturnUndef"
       | Return_true -> `String "ReturnTrue"

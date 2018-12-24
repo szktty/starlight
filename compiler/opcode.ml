@@ -60,6 +60,7 @@ module Debug = struct
       | Make_ok n -> sprintf "make #ok (%d)" n
       | Make_error n -> sprintf "make #error (%d)" n
       | Apply nargs -> sprintf "apply %d" nargs
+      | Spawn -> "spawn"
       | Not -> "not"
       | Eq -> "=="
       | Ne -> "!="

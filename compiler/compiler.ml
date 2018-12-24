@@ -371,6 +371,14 @@ let compile form =
       add_op ctx (Apply nargs);
       popn ctx nargs
 
+    | Spawn (fn, args) ->
+      let id = Id.next meta "*spawn*" in
+      add_comment ctx (next_pc ctx) (sprintf "%s fun" id);
+      f ctx fn;
+      add_comment ctx (next_pc ctx) (sprintf "%s args" id);
+      f ctx args;
+      add_op_pop ctx Spawn
+
     | Get_global name ->
       add_comment ctx (next_pc ctx) "get global";
       f ctx name;

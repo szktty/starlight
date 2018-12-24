@@ -134,6 +134,12 @@ let rec from_node node =
             | Atom "is_reference", [arg] -> Test_ref arg
             | Atom "is_tuple", [arg] -> Test_tuple arg
             | Atom "self", [] -> Self
+            | Atom "spawn", [fn; args] ->
+              Spawn (fn, args)
+            | Atom "spawn", [mname; fname; args] ->
+              Spawn (Get_prop (Get_global mname, fname), args)
+            | Atom "spawn", _ ->
+              failwith "spawn must takes 2-3 args"
             | fname, _ ->
               let fobj = Get_prop (Get_global (Atom !self), fname) in
               Apply (fobj, args)

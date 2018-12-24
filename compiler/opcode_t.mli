@@ -46,6 +46,7 @@ type t =
   | Make_error of int
 
   | Apply of int
+  | Spawn
   | Not
   | Eq
   | Ne

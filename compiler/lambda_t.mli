@@ -18,6 +18,7 @@ type t =
   | For of for_
   | Loop of t * t (* cond, body *)
   | Apply of t * t list (* fun, args *)
+  | Spawn of t * t (* fun, args *)
   | Get_global of t (* key *)
   | Get_prop of t * t (* load, key *)
   | Get_field of t * int (* load, index *)

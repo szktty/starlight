@@ -37,6 +37,8 @@ let rec to_sexp = function
     Sexp.tagged "seq" [to_sexp exp1; to_sexp exp2]
   | Apply (f, args) ->
     Sexp.tagged "apply" (to_sexp f :: List.map args ~f:to_sexp)
+  | Spawn (f, args) ->
+    Sexp.tagged "spawn" [to_sexp f; to_sexp args]
   | If (cond, then_, else_) ->
     Sexp.tagged "if" [to_sexp cond; to_sexp then_; to_sexp else_]
   | Switch _ ->
