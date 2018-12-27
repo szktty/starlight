@@ -1,3 +1,4 @@
+use heap::ObjectId;
 use std::cell::{Ref, RefCell, RefMut};
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -8,6 +9,11 @@ pub struct Module {
     pub name: RefCell<Option<String>>,
     pub author: Option<String>,
     pub fields: HashMap<String, Value>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ModuleGroup {
+    pub mods: RefCell<HashMap<String, ObjectId>>,
 }
 
 #[derive(Debug, Clone)]
@@ -27,14 +33,13 @@ impl Module {
         let m = Module::new();
         m.set_name(name);
         m
-     }
-     pub fn get_name(&self) -> Option<String> {
-         self.name.borrow().clone()
-     }
-     pub fn set_name(&self, name: &str) {
-         *self.name.borrow_mut() = Some(name.to_string());
-     }
-
+    }
+    pub fn get_name(&self) -> Option<String> {
+        self.name.borrow().clone()
+    }
+    pub fn set_name(&self, name: &str) {
+        *self.name.borrow_mut() = Some(name.to_string());
+    }
 }
 
 impl ModuleRef {
@@ -58,5 +63,15 @@ impl ModuleRef {
 
     pub fn borrow_mut(&self) -> RefMut<Module> {
         (*self.rc).borrow_mut()
+    }
+}
+
+impl ModuleGroup {
+    pub fn get(&self, name: &str) -> Option<ObjectId> {
+        self.mods.borrow().get(name).cloned()
+    }
+
+    pub fn add(&self, name: &str, m: ObjectId) -> Option<ObjectId> {
+        self.mods.borrow_mut().insert(name.to_string(), m)
     }
 }

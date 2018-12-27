@@ -5,7 +5,7 @@ use serde_json;
 use serde_json::Result;
 use std::fs::File;
 use std::io::prelude::*;
-use std::rc::Rc;
+use std::sync::Arc;
 use value;
 use value::{Bitstr, CompiledCode, List, Value};
 
@@ -46,27 +46,27 @@ pub fn from_file(file: &str) -> Result<Bytecode> {
 impl BcConst {
     pub fn to_value(&self) -> Value {
         match self {
-            BcConst::Atom(value) => Value::Atom(Rc::new(value.clone())),
+            BcConst::Atom(value) => Value::Atom(Arc::new(value.clone())),
             BcConst::Int(value) => Value::Int(value.parse().unwrap()),
-            BcConst::String(value) => Value::String(Rc::new(value.clone())),
+            BcConst::String(value) => Value::String(Arc::new(value.clone())),
             BcConst::Function(value) => {
                 let code = value.to_value_code();
-                Value::CompiledCode(Rc::new(code.clone()))
+                Value::CompiledCode(Arc::new(code.clone()))
             }
             BcConst::Bitstr(size, value, _ty, _sign, _endian, _unit) => {
                 // TODO
                 // Bitstr.from_spec(size,value,ty,sign,endian,unit)
-                Value::Bitstr(Rc::new(Bitstr {
+                Value::Bitstr(Arc::new(Bitstr {
                     size: *size,
                     value: *value,
                 }))
             }
             BcConst::Block(BlockTag::Binary, vals) => {
-                Value::Binary(Rc::new(vals.iter().map(|val| val.to_value()).collect()))
+                Value::Binary(Arc::new(vals.iter().map(|val| val.to_value()).collect()))
             }
             BcConst::Block(BlockTag::List, vals) => {
                 let elts = vals.iter().map(|val| val.to_value()).collect();
-                Value::List(Rc::new(List::from_list(&elts)))
+                Value::List(Arc::new(List::from_list(&elts)))
             }
             _ => panic!("# not impl {:?}", self),
         }

@@ -1,37 +1,39 @@
-use module::Module;
+use dispatch::{Queue, QueuePriority};
+use heap::{Heap, Object, ObjectDesc, ObjectId};
+use interp_init;
+use module::{Module, ModuleGroup};
 use opcode::{BlockTag, Opcode};
 use std::cell::RefCell;
 use std::collections::HashMap;
-use std::rc::Rc;
 use std::result::Result;
+use std::sync::{Arc, Mutex};
 use value::{CompiledCode, List, Value};
 
 #[derive(Debug, Clone)]
 pub struct Caller {
-    pub code: Rc<CompiledCode>,
+    pub code: Arc<CompiledCode>,
     pc: usize,
 }
 
 #[derive(Debug, Clone)]
 pub struct Context {
     pub caller: Option<Caller>,
-    pub code: Rc<CompiledCode>,
+    pub code: Arc<CompiledCode>,
     pc: usize, // program counter
     locals: Vec<Value>,
     stack: Vec<Value>,
     sp: usize, // stack pointer
 }
 
-#[derive(Debug, Clone)]
 pub struct Interp {
-    pub ctx_id: RefCell<usize>,
-    pub stack: RefCell<Vec<Value>>,
-    pub modules: RefCell<HashMap<String, Rc<Module>>>,
+    pub queue: Arc<Queue>,
+    pub heap: Heap,
+    pub mgroup_id: ObjectId,
 }
 
 impl Context {
     #[inline]
-    pub fn new(caller_ctx: Option<&Context>, code: Rc<CompiledCode>, args: Vec<Value>) -> Context {
+    pub fn new(caller_ctx: Option<&Context>, code: Arc<CompiledCode>, args: Vec<Value>) -> Context {
         let mut locals: Vec<Value> = Vec::with_capacity(code.locals);
         let sp = args.len();
         let mut stack = args;
@@ -161,41 +163,64 @@ impl Context {
 
 impl Interp {
     pub fn new() -> Interp {
-        let len = 65536;
-        let mut stack = Vec::with_capacity(len);
-        for _ in 0..len {
-            stack.push(Value::Nil)
-        }
+        let queue = Arc::new(Queue::global(QueuePriority::Default));
+        let heap = Heap::new(vec![queue.clone()]);
+        let mods_item = ObjectDesc::ModuleGroup(Arc::new(ModuleGroup {
+            mods: RefCell::new(HashMap::new()),
+        }));
+        let mgroup_id = heap.create(mods_item).id;
         Interp {
-            ctx_id: RefCell::new(0),
-            stack: RefCell::new(stack),
-            modules: RefCell::new(HashMap::new()),
+            queue,
+            heap,
+            mgroup_id,
         }
     }
 
-    #[inline]
-    pub fn get_module(&self, name: &str) -> Option<Rc<Module>> {
-        let list = self.modules.borrow();
-        list.get(name).cloned()
+    fn get_module_group<F, U>(&self, f: F) -> U
+    where
+        F: FnOnce(&ModuleGroup) -> U,
+    {
+        match self.heap.get_desc(self.mgroup_id).unwrap() {
+            ObjectDesc::ModuleGroup(group) => f(&*group),
+            _ => panic!("not found module group"),
+        }
     }
 
-    #[inline]
-    pub fn add_module(&self, m: Rc<Module>) {
-        let mut list = self.modules.borrow_mut();
-        let _ = list.insert((*m).get_name().unwrap().clone(), m);
+    pub fn get_module(&self, name: &str) -> Option<(ObjectId, Arc<Module>)> {
+        self.get_module_group(|group| match group.get(name) {
+            Some(id) => match self.heap.get_desc(id) {
+                Some(ObjectDesc::Module(m)) => Some((id, m.clone())),
+                _ => None,
+            },
+            None => None,
+        })
     }
 
-    #[inline]
-    pub fn add_modules(&self, ms: Vec<Module>) {
+    pub fn get_module_for_id(&self, id: ObjectId) -> Option<Arc<Module>> {
+        match self.heap.get_desc(id) {
+            Some(ObjectDesc::Module(m)) => Some(m.clone()),
+            _ => None,
+        }
+    }
+
+    pub fn add_module(&self, m: Arc<Module>) {
+        self.get_module_group(|group| {
+            let name = m.get_name().unwrap();
+            let desc = self.heap.create(ObjectDesc::Module(m));
+            group.add(&name, desc.id);
+        });
+    }
+
+    pub fn install_modules(&self, ms: Vec<Module>) {
         for m in ms.into_iter() {
-            self.add_module(Rc::new(m))
+            self.add_module(Arc::new(m))
         }
     }
 
     pub fn eval(
-        &self,
+        interp: Arc<Interp>,
         caller: Option<&Context>,
-        code: Rc<CompiledCode>,
+        code: Arc<CompiledCode>,
         args: Vec<Value>,
     ) -> Result<Value, String> {
         let mut ctx = Context::new(caller, code.clone(), args);
@@ -214,11 +239,11 @@ impl Interp {
                 Opcode::LoadLocal(i) => ctx.load_local(*i as usize),
                 Opcode::LoadTrue => ctx.load(Value::Bool(true)),
                 Opcode::LoadFalse => ctx.load(Value::Bool(false)),
-                Opcode::LoadUndef => ctx.load(Value::Atom(Rc::new("undef".to_string()))),
-                Opcode::LoadOk => ctx.load(Value::Atom(Rc::new("ok".to_string()))),
-                Opcode::LoadError => ctx.load(Value::Atom(Rc::new("error".to_string()))),
+                Opcode::LoadUndef => ctx.load(Value::Atom(Arc::new("undef".to_string()))),
+                Opcode::LoadOk => ctx.load(Value::Atom(Arc::new("ok".to_string()))),
+                Opcode::LoadError => ctx.load(Value::Atom(Arc::new("error".to_string()))),
                 Opcode::LoadBitstr(size, val) => ctx.load(Value::Bitstr32(*size, *val)),
-                Opcode::LoadEmpty(BlockTag::List) => ctx.load(Value::List(Rc::new(List::Nil))),
+                Opcode::LoadEmpty(BlockTag::List) => ctx.load(Value::List(Arc::new(List::Nil))),
                 Opcode::StorePopLocal(i) => {
                     let val = ctx.pop();
                     ctx.store(*i as usize, val);
@@ -234,20 +259,23 @@ impl Interp {
                     let pname = ctx.pop_string();
                     let val = ctx.pop();
                     match val {
-                        Value::ModuleName(name) => match self.get_module(&name) {
-                            Some(m) => match m.fields.get(&pname) {
+                        Value::Module(id) => match interp.heap.get(id) {
+                            Some(Object {
+                                desc: ObjectDesc::Module(ref m),
+                                ..
+                            }) => match m.fields.get(&pname) {
                                 None => panic!("# GetProp: key {:?} is not found", pname),
                                 Some(val) => ctx.load(val.clone()),
                             },
-                            None => panic!("# module {} not found", name),
+                            _ => panic!("# module {:?} not found", id),
                         },
                         _ => panic!("# GetProp non-module not impl"),
                     };
                 }
                 Opcode::GetGlobal => {
                     let name = ctx.pop_string();
-                    match self.get_module(&name) {
-                        Some(_) => ctx.load(Value::ModuleName(Rc::new(name.clone()))),
+                    match interp.get_module(&name) {
+                        Some((id, _)) => ctx.load(Value::Module(id)),
                         None => panic!("# GetGlobal not impl non module"),
                     }
                 }
@@ -255,10 +283,13 @@ impl Interp {
                     let val = ctx.pop();
                     let name = ctx.pop_string();
                     match val {
-                        Value::Module(m) => {
-                            (*m).set_name(&name);
-                            self.add_module(m.clone());
-                        }
+                        Value::Module(id) => match interp.get_module_for_id(id) {
+                            Some(m) => {
+                                m.set_name(&name);
+                                interp.add_module(m.clone())
+                            }
+                            None => panic!("# SetGlobal not found module {}", name),
+                        },
                         _ => panic!("not supported"),
                     }
                 }
@@ -276,13 +307,13 @@ impl Interp {
                     }
                 }
                 Opcode::Return => return Ok(ctx.top().clone()),
-                Opcode::ReturnUndef => return Ok(Value::Atom(Rc::new("undefined".to_string()))),
+                Opcode::ReturnUndef => return Ok(Value::Atom(Arc::new("undefined".to_string()))),
                 Opcode::MakeBlock(BlockTag::NonConst, size) => {
                     let vals = ctx.popn(*size as usize);
-                    ctx.load(Value::Array(Rc::new(vals)))
+                    ctx.load(Value::Array(Arc::new(vals)))
                 }
                 Opcode::MakeBlock(BlockTag::Module, size) => {
-                    // TODO: attributes
+                    // TODO: name, attributes
                     let size = *size as usize;
                     let vals = ctx.popn(size);
                     let mut m = Module::new();
@@ -293,32 +324,44 @@ impl Interp {
                             m.fields.insert(key, val);
                         }
                     }
-                    ctx.load(Value::Module(Rc::new(m)));
+                    // TODO
+                    // m.set_name(name);
+                    let obj = interp.heap.create(ObjectDesc::Module(Arc::new(m)));
+                    ctx.load(Value::Module(obj.id));
                 }
                 Opcode::MakeBlock(BlockTag::List, 0) => ctx.load(List::nil_value()),
                 Opcode::MakeBlock(BlockTag::List, _) => {
                     let tail = ctx.pop();
                     let head = ctx.pop();
-                    ctx.load(Value::List(Rc::new(List::new(head, tail))));
+                    ctx.load(Value::List(Arc::new(List::new(head, tail))));
                 }
                 Opcode::MakeBlock(BlockTag::Tuple, size) => {
                     let vals = ctx.popn(*size as usize);
-                    ctx.load(Value::Tuple(Rc::new(vals)))
+                    ctx.load(Value::Tuple(Arc::new(vals)))
                 }
                 Opcode::Apply(nargs) => {
                     let args = ctx.popn(*nargs as usize);
                     let fval = ctx.pop();
-                    match fval {
-                        Value::CompiledCode(code) => match self.eval(Some(&ctx), code, args) {
-                            Ok(val) => ctx.load(val),
-                            Err(err) => panic!("# call error {:?}", err),
-                        },
-                        Value::Nif(nif) => match ((*nif).fun)(&args) {
-                            Ok(ret) => ctx.load(ret),
-                            Err(err) => return Err(err),
-                        },
-                        _ => panic!("# apply: not function {:?}", fval),
-                    }
+                    let ret = try!(Interp::eval_fun(interp.clone(), &ctx, fval, args));
+                    ctx.load(ret)
+                }
+                Opcode::Spawn => {
+                    // TODO
+                    let args = ctx.pop();
+                    let fval = ctx.pop();
+                    println!("# spawn f {:?}, {:?}", fval, args);
+                    let args = match args {
+                        Value::List(list) => (*list).to_vec().unwrap(),
+                        _ => panic!("# spawn: args must be list"),
+                    };
+                    let interp2 = interp.clone();
+                    let ctx2 = ctx.clone();
+                    interp.queue.async(move || {
+                        let _ = Arc::new(Interp::eval_fun(interp2, &ctx2, fval, args));
+                        println!("# queue exec");
+                    });
+                    // TODO
+                    ctx.load(Value::Nil);
                 }
                 Opcode::BlockSize => {
                     let val = ctx.pop();
@@ -347,7 +390,7 @@ impl Interp {
                 }
                 Opcode::ListComprGen(_) => {
                     // TODO
-                    ctx.load(Value::Atom(Rc::new("undefined".to_string())));
+                    ctx.load(Value::Atom(Arc::new("undefined".to_string())));
                 }
                 Opcode::ListRev => {
                     // TODO
@@ -401,6 +444,27 @@ impl Interp {
                 op => panic!("# eval: not impl {:?}", op),
             }
             ctx.pc += 1;
+        }
+    }
+
+    fn eval_fun(
+        interp: Arc<Interp>,
+        ctx: &Context,
+        fval: Value,
+        args: Vec<Value>,
+    ) -> Result<Value, String> {
+        match fval {
+            Value::CompiledCode(code) => {
+                match Interp::eval(interp.clone(), Some(ctx), code, args) {
+                    Ok(val) => Ok(val),
+                    Err(err) => panic!("# call error {:?}", err),
+                }
+            }
+            Value::Nif(nif) => match ((*nif).fun)(&args) {
+                Ok(val) => Ok(val),
+                Err(err) => return Err(err),
+            },
+            _ => panic!("# apply: not function {:?}", fval),
         }
     }
 }
