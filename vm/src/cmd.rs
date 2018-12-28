@@ -7,13 +7,13 @@ use std::sync::Arc;
 use value::Value;
 
 pub struct Command {
-    pub interp: Interp,
+    pub interp: Arc<Interp>,
 }
 
 impl Command {
     pub fn new() -> Command {
         Command {
-            interp: interp_init::init(),
+            interp: Arc::new(interp_init::init()),
         }
     }
 
@@ -33,7 +33,7 @@ impl Command {
             Ok(bc) => {
                 debug!("execute module initialization function");
                 let init = Arc::new(bc.main.to_value_code().clone());
-                let interp = Arc::new(Interp::new());
+                let interp = self.interp.clone();
                 {
                     match Interp::eval(interp.clone(), None, init.clone(), Vec::new()) {
                         Ok(_) => {}
