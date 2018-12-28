@@ -1,5 +1,5 @@
 use dispatch::{Queue, QueuePriority};
-use heap::{Heap, Object, ObjectDesc, ObjectId};
+use heap::{Content, Heap, Object, ObjectId};
 use interp_init;
 use module::{Module, ModuleGroup};
 use opcode::{BlockTag, Opcode};
@@ -165,7 +165,7 @@ impl Interp {
     pub fn new() -> Interp {
         let queue = Arc::new(Queue::global(QueuePriority::Default));
         let heap = Heap::new(vec![queue.clone()]);
-        let mods_item = ObjectDesc::ModuleGroup(Arc::new(ModuleGroup {
+        let mods_item = Content::ModuleGroup(Arc::new(ModuleGroup {
             mods: RefCell::new(HashMap::new()),
         }));
         let mgroup_id = heap.create(mods_item).id;
@@ -180,16 +180,16 @@ impl Interp {
     where
         F: FnOnce(&ModuleGroup) -> U,
     {
-        match self.heap.get_desc(self.mgroup_id).unwrap() {
-            ObjectDesc::ModuleGroup(group) => f(&*group),
+        match self.heap.get_content(self.mgroup_id).unwrap() {
+            Content::ModuleGroup(group) => f(&*group),
             _ => panic!("not found module group"),
         }
     }
 
     pub fn get_module(&self, name: &str) -> Option<(ObjectId, Arc<Module>)> {
         self.get_module_group(|group| match group.get(name) {
-            Some(id) => match self.heap.get_desc(id) {
-                Some(ObjectDesc::Module(m)) => Some((id, m.clone())),
+            Some(id) => match self.heap.get_content(id) {
+                Some(Content::Module(m)) => Some((id, m.clone())),
                 _ => None,
             },
             None => None,
@@ -197,8 +197,8 @@ impl Interp {
     }
 
     pub fn get_module_for_id(&self, id: ObjectId) -> Option<Arc<Module>> {
-        match self.heap.get_desc(id) {
-            Some(ObjectDesc::Module(m)) => Some(m.clone()),
+        match self.heap.get_content(id) {
+            Some(Content::Module(m)) => Some(m.clone()),
             _ => None,
         }
     }
@@ -206,8 +206,8 @@ impl Interp {
     pub fn add_module(&self, m: Arc<Module>) {
         self.get_module_group(|group| {
             let name = m.get_name().unwrap();
-            let desc = self.heap.create(ObjectDesc::Module(m));
-            group.add(&name, desc.id);
+            let obj = self.heap.create(Content::Module(m));
+            group.add(&name, obj.id);
         });
     }
 
@@ -261,7 +261,7 @@ impl Interp {
                     match val {
                         Value::Module(id) => match interp.heap.get(id) {
                             Some(Object {
-                                desc: ObjectDesc::Module(ref m),
+                                content: Content::Module(ref m),
                                 ..
                             }) => match m.fields.get(&pname) {
                                 None => panic!("# GetProp: key {:?} is not found", pname),
@@ -326,7 +326,7 @@ impl Interp {
                     }
                     // TODO
                     // m.set_name(name);
-                    let obj = interp.heap.create(ObjectDesc::Module(Arc::new(m)));
+                    let obj = interp.heap.create(Content::Module(Arc::new(m)));
                     ctx.load(Value::Module(obj.id));
                 }
                 Opcode::MakeBlock(BlockTag::List, 0) => ctx.load(List::nil_value()),

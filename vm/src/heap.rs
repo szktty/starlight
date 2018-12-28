@@ -16,11 +16,11 @@ pub struct Heap {
 #[derive(Debug, Clone)]
 pub struct Object {
     pub id: ObjectId,
-    pub desc: ObjectDesc,
+    pub content: Content,
 }
 
 #[derive(Debug, Clone)]
-pub enum ObjectDesc {
+pub enum Content {
     Module(Arc<Module>),
     ModuleGroup(Arc<ModuleGroup>),
 }
@@ -62,16 +62,16 @@ impl Heap {
         }
     }
 
-    pub fn get_desc(&self, id: ObjectId) -> Option<ObjectDesc> {
-        self.get(id).map(|obj| obj.desc)
+    pub fn get_content(&self, id: ObjectId) -> Option<Content> {
+        self.get(id).map(|obj| obj.content)
     }
 
-    pub fn create(&self, desc: ObjectDesc) -> Object {
+    pub fn create(&self, content: Content) -> Object {
         self.lock();
 
         let mut store = self.store.borrow_mut();
         let mut id = self.id.borrow_mut();
-        let obj = Object { id: *id, desc };
+        let obj = Object { id: *id, content };
         store.insert(*id, obj.clone());
         *id += 1;
 
