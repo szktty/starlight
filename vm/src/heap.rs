@@ -3,11 +3,12 @@ use module::{Module, ModuleGroup};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::sync::Arc;
+use thread_pool::ThreadPool;
 
 pub type ObjectId = usize;
 
 pub struct Heap {
-    queues: Vec<Arc<Queue>>,
+    pool: Arc<ThreadPool>,
     guards: RefCell<Vec<SuspendGuard>>,
     id: RefCell<usize>,
     store: RefCell<HashMap<ObjectId, Object>>,
@@ -29,9 +30,9 @@ unsafe impl Sync for Heap {}
 unsafe impl Send for Heap {}
 
 impl Heap {
-    pub fn new(queues: Vec<Arc<Queue>>) -> Heap {
+    pub fn new(pool: Arc<ThreadPool>) -> Heap {
         Heap {
-            queues,
+            pool,
             guards: RefCell::new(Vec::new()),
             id: RefCell::new(0),
             store: RefCell::new(HashMap::new()),
@@ -43,9 +44,7 @@ impl Heap {
         if !guards.is_empty() {
             panic!("already locked")
         }
-        for queue in self.queues.iter() {
-            guards.push(queue.suspend())
-        }
+        guards.push(self.pool.user.suspend())
     }
 
     pub fn unlock(&self) {

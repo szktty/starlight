@@ -25,4 +25,5 @@ pub mod lib_strl_runtime;
 pub mod module;
 pub mod opcode;
 pub mod process;
+pub mod thread_pool;
 pub mod value;

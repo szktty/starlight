@@ -62,6 +62,7 @@ impl Command {
                 }
             }
         }
+        self.interp.pool.wait_all();
     }
 }
 

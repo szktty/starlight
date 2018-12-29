@@ -7,6 +7,7 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::result::Result;
 use std::sync::{Arc, Mutex};
+use thread_pool::ThreadPool;
 use value::{CompiledCode, List, Value};
 
 #[derive(Debug, Clone)]
@@ -26,7 +27,7 @@ pub struct Context {
 }
 
 pub struct Interp {
-    pub queue: Arc<Queue>,
+    pub pool: Arc<ThreadPool>,
     pub heap: Heap,
     pub mgroup_id: ObjectId,
 }
@@ -163,12 +164,12 @@ impl Context {
 
 impl Interp {
     pub fn new() -> Interp {
-        let queue = Arc::new(Queue::global(QueuePriority::Default));
-        let heap = Heap::new(vec![queue.clone()]);
+        let pool = Arc::new(ThreadPool::new());
+        let heap = Heap::new(pool.clone());
         let mgroup = Content::ModuleGroup(Arc::new(ModuleGroup::new()));
         let mgroup_id = heap.create(mgroup).id;
         Interp {
-            queue,
+            pool,
             heap,
             mgroup_id,
         }
@@ -354,7 +355,7 @@ impl Interp {
                     };
                     let interp2 = interp.clone();
                     let ctx2 = ctx.clone();
-                    interp.queue.async(move || {
+                    interp.pool.group.async(&interp.pool.user, move || {
                         let _ = Arc::new(Interp::eval_fun(interp2, &ctx2, fval, args));
                         println!("# queue exec");
                     });
