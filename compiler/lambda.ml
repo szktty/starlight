@@ -23,24 +23,19 @@ let make_tuple elts =
 
 let rec from_node node =
   let gen = Id.gen () in
-  let self = ref "" in
   let cur_exit = ref (-1) in
   let new_exit () =
     cur_exit := !cur_exit + 1;
     !cur_exit
   in
+  let lmod = ref {
+      mod_name = None;
+      mod_authors = [];
+      mod_exports = [];
+      mod_code = Nop;
+    } in
   let rec f = function
     | Ast_t.Module m ->
-      let id = Option.value_exn
-          (List.find_map m.module_decls
-             ~f:(fun decl ->
-                 match decl with
-                 | Ast_t.Modname_attr mname ->
-                   Some mname.modname_attr_name.desc
-                 | _ -> None))
-      in
-      self := id;
-
       (* attributes and declarations *)
       let attrs, funs =
         List.fold_left m.module_decls
@@ -48,9 +43,15 @@ let rec from_node node =
           ~f:(fun (attrs, funs) decl ->
               match decl with
               | Modname_attr attr ->
-                ("module", Atom attr.modname_attr_name.desc) :: attrs, funs
+                let name = attr.modname_attr_name.desc in
+                lmod := { !lmod with mod_name = Some name };
+                ("module", Atom name) :: attrs, funs
+
               | Author_attr attr ->
-                ("author", Atom attr.auth_attr_name.desc) :: attrs, funs
+                let name = attr.auth_attr_name.desc in
+                lmod := { !lmod with mod_authors = name :: !lmod.mod_authors };
+                ("author", Atom name) :: attrs, funs
+
               | Export_attr attr ->
                 let sigs = List.map
                     (Seplist.values attr.export_attr_funs)
@@ -61,9 +62,12 @@ let rec from_node node =
                 let attrs = List.fold_left sigs
                     ~init:attrs
                     ~f:(fun attrs (name, arity) ->
+                        lmod := { !lmod with
+                                  mod_exports = (name, arity) :: !lmod.mod_exports };
                         ("export", Fun_sig (name, arity)) :: attrs)
                 in
                 attrs, funs
+
               | User_attr attr ->
                 let values =
                   Option.value_map attr.user_attr_values
@@ -73,8 +77,10 @@ let rec from_node node =
                         make_tuple values)
                 in
                 (attr.user_attr_tag.desc, values) :: attrs, funs
+
               | Fun_decl decl ->
                 attrs, f_decl decl :: funs
+
               | _ -> failwith "notimpl")
       in
 
@@ -98,7 +104,14 @@ let rec from_node node =
 
       (* create module *)
       let fn = g_mod_prop "strl_runtime" "create_module" in
-      Set_global (Atom id, Let (binds, Apply (fn, args)))
+      let mname = match !lmod.mod_name with
+        | Some name -> name
+        | None -> failwith "module name must not be nil"
+      in
+      Module {
+        !lmod with
+        mod_code = Set_global (Atom mname, Let (binds, Apply (fn, args)))
+      }
 
     | Case case ->
       let claus = Seplist.values case.case_clauses in
@@ -151,7 +164,10 @@ let rec from_node node =
             | Atom "spawn", _ ->
               failwith "spawn must takes 2-3 args"
             | fname, _ ->
-              let fobj = Get_prop (Get_global (Atom !self), fname) in
+              let fobj =
+                Get_prop
+                  (Get_global
+                     (Atom (Option.value_exn !lmod.mod_name)), fname) in
               Apply (fobj, args)
           end
       end

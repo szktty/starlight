@@ -20,8 +20,20 @@ let rec to_sexp = function
       | Ev_fun -> Sexp.tagged "fun_body" body
     end
   | Module m ->
-    let attrs = List.map m.mod_attrs ~f:modattr_to_sexp in
-    Sexp.tagged "module" (List.append attrs [to_sexp m.mod_code])
+    let attr name value =
+      Sexp.List [Sexp.Atom name; value]
+    in
+    Sexp.tagged "module" [
+      attr "name" (Sexp.Atom (Option.value_exn m.mod_name));
+      attr "authors"
+        (Sexp.List (List.map m.mod_authors
+                      ~f:(fun auth -> Sexp.Atom auth)));
+      attr "exports"
+        (Sexp.List (List.map m.mod_exports
+                      ~f:(fun (name, arity) ->
+                          Sexp.Atom (sprintf "%s/%d" name arity))));
+      to_sexp m.mod_code
+    ]
   | Let (binds, exp) ->
     let binds1 =
       List.map binds
@@ -31,6 +43,7 @@ let rec to_sexp = function
     Sexp.tagged "let" [Sexp.List binds1; to_sexp exp]
   | Fun (name, params, body) ->
     Sexp.tagged "fun" [
+      Sexp.Atom (Option.value name ~default:"<none>");
       Sexp.List (List.map params ~f:(fun id -> Sexp.Atom id));
       to_sexp body]
   | Fun_sig (name, arity) ->
@@ -190,18 +203,6 @@ let rec to_sexp = function
   (* TODO: others *)
   | Nop -> Sexp.Atom "nop"
   | _ -> Sexp.Atom "<?>"
-
-and modattr_to_sexp = function
-  | Modname name ->
-    Sexp.tagged "name" [Sexp.Atom name]
-  | Authors names ->
-    Sexp.tagged "authors"
-      (List.map names ~f:(fun name -> Sexp.Atom name))
-  | Exports sigs ->
-    Sexp.tagged "exports"
-      (List.map sigs
-         ~f:(fun (name, arity) ->
-             Sexp.Atom (Printf.sprintf "%s/%d" name arity)))
 
 and opt_to_sexp exp =
   Option.value_map exp

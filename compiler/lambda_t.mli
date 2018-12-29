@@ -97,14 +97,11 @@ and event_kind =
   | Ev_fun
 
 and module_ = {
-  mod_attrs : attr list;
+  mod_name : string option;
+  mod_authors : string list;
+  mod_exports : (string * int) list;
   mod_code : t;
 }
-
-and attr =
-  | Modname of string
-  | Authors of string list
-  | Exports of (string * int) list
 
 and binding = Id.t * t
 
