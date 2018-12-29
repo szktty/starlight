@@ -33,6 +33,8 @@ let rec to_sexp = function
     Sexp.tagged "fun" [
       Sexp.List (List.map params ~f:(fun id -> Sexp.Atom id));
       to_sexp body]
+  | Fun_sig (name, arity) ->
+    Sexp.tagged "fun_sig" [Sexp.Atom name; Sexp.Atom (Int.to_string arity)]
   | Seq (exp1, exp2) ->
     Sexp.tagged "seq" [to_sexp exp1; to_sexp exp2]
   | Apply (f, args) ->
@@ -64,8 +66,8 @@ let rec to_sexp = function
     Sexp.tagged "loop" [to_sexp cond; to_sexp body]
   | Make_block (tag, elts) ->
     Sexp.tagged "make_block"
-      (Sexp.Atom (Block_tag.to_string tag) ::
-       List.map elts  ~f:to_sexp)
+      [Sexp.Atom (Block_tag.to_string tag);
+       Sexp.List (List.map elts ~f:to_sexp)]
   | Local name -> Sexp.Atom ("$" ^ name)
   | Get_module -> Sexp.Atom "getmodule"
   | Get_prop (map, key) ->
@@ -122,9 +124,10 @@ let rec to_sexp = function
   | String s -> Sexp.tagged "string" [String.sexp_of_t s]
   | Int s -> String.sexp_of_t s
   | Float s -> String.sexp_of_t s
-  | Block (tag, exps) ->
+  | Block (tag, elts) ->
     Sexp.tagged "block"
-      (Sexp.Atom (Block_tag.to_string tag) :: List.map exps ~f:to_sexp)
+      [Sexp.Atom (Block_tag.to_string tag);
+       Sexp.List (List.map elts ~f:to_sexp)]
   | Bitstr bits ->
     Sexp.tagged "bitstr" (bits_to_sexp bits)
   | Make_bitstr bits ->

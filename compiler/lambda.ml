@@ -18,6 +18,9 @@ let g_mod name =
 let g_mod_prop mname fname =
   Get_prop (g_mod mname, (Atom fname))
 
+let make_tuple elts =
+  Make_block (Block_tag.Tuple, elts)
+
 let rec from_node node =
   let gen = Id.gen () in
   let self = ref "" in
@@ -28,7 +31,6 @@ let rec from_node node =
   in
   let rec f = function
     | Ast_t.Module m ->
-      (* module name *)
       let id = Option.value_exn
           (List.find_map m.module_decls
              ~f:(fun decl ->
@@ -39,17 +41,16 @@ let rec from_node node =
       in
       self := id;
 
-      (* module attributes *)
-      let authors : string list ref = ref [] in
-      let exports : (string * int) list ref = ref [] in
-      let keys, binds =
+      (* attributes and declarations *)
+      let attrs, funs =
         List.fold_left m.module_decls
-          ~init:[]
-          ~f:(fun accu decl ->
+          ~init:([], [])
+          ~f:(fun (attrs, funs) decl ->
               match decl with
+              | Modname_attr attr ->
+                ("module", Atom attr.modname_attr_name.desc) :: attrs, funs
               | Author_attr attr ->
-                authors := attr.auth_attr_name.desc :: !authors;
-                accu
+                ("author", Atom attr.auth_attr_name.desc) :: attrs, funs
               | Export_attr attr ->
                 let sigs = List.map
                     (Seplist.values attr.export_attr_funs)
@@ -57,38 +58,47 @@ let rec from_node node =
                         fsig.fun_sig_name.desc,
                         (Int.of_string fsig.fun_sig_arity.desc))
                 in
-                exports := List.append !exports sigs;
-                accu
+                let attrs = List.fold_left sigs
+                    ~init:attrs
+                    ~f:(fun attrs (name, arity) ->
+                        ("export", Fun_sig (name, arity)) :: attrs)
+                in
+                attrs, funs
+              | User_attr attr ->
+                let values =
+                  Option.value_map attr.user_attr_values
+                    ~default:(make_tuple [])
+                    ~f:(fun values ->
+                        let values = List.map (extract values) ~f in
+                        make_tuple values)
+                in
+                (attr.user_attr_tag.desc, values) :: attrs, funs
               | Fun_decl decl ->
-                let name =
-                  Option.value_exn
-                    (Seplist.hd_exn decl.fun_decl_body).fun_clause_name in
-                (name.desc, f_decl decl) :: accu
-              | _ -> accu)
-        |> List.rev
-        |> List.unzip
+                attrs, f_decl decl :: funs
+              | _ -> failwith "notimpl")
       in
-      let values =
-        List.fold2_exn keys binds
-          ~init:[]
-          ~f:(fun accu key (name, _) ->
-              Local name :: Atom key :: accu)
-        |> List.rev
-      in
-      let block = Make_block (Block_tag.Module, values) in
-      let let_ = Let (binds, block) in
-      let code = Set_global (Atom id, let_) in
 
-      let list_opt ~f = function
-        | [] -> None
-        | value -> Some (f value)
+      (* args *)
+      let attrs =
+        List.fold_left (List.rev attrs)
+          ~init:[]
+          ~f:(fun accu (name, value) ->
+              make_tuple [Atom name; value]:: accu)
+        |> List.rev
       in
-      let attrs = List.filter_opt [
-          Some (Modname id);
-          list_opt !authors ~f:(fun names -> Authors names);
-          list_opt !exports ~f:(fun sigs -> Exports sigs);
-        ] in
-      Module { mod_attrs = attrs; mod_code = code }
+      let binds, funs =
+        List.fold_left (List.rev funs)
+          ~init:([], [])
+          ~f:(fun (binds, funs) (name, id, decl) ->
+              (id, decl) :: binds, make_tuple [Atom name; Local id] :: funs)
+      in
+      let attrs_block = Make_block (Block_tag.Tuple, List.rev attrs) in
+      let funs_block = Make_block (Block_tag.Tuple, List.rev funs) in
+      let args = [attrs_block; funs_block] in
+
+      (* create module *)
+      let fn = g_mod_prop "strl_runtime" "create_module" in
+      Set_global (Atom id, Let (binds, Apply (fn, args)))
 
     | Case case ->
       let claus = Seplist.values case.case_clauses in
@@ -535,7 +545,7 @@ let rec from_node node =
     Let ([(gen_var, l_gen)],
          Seq (l_loop_body, Apply (collect_fun, [Local gen_var])))
 
-  and f_decl decl : (Id.t * t) =
+  and f_decl decl : (string * Id.t * t) =
     let claus = Seplist.values decl.fun_decl_body in
     let head = List.hd_exn claus in
     let name = Option.value_exn head.fun_clause_name in
@@ -582,7 +592,7 @@ let rec from_node node =
            name.loc
            (Fun (Some name.desc, params, body)))
     in
-    (Id.next gen name.desc, ev)
+    (name.desc, Id.next gen name.desc, ev)
 
   and seq exp1 exp2 = 
     match exp2 with

@@ -2,6 +2,7 @@ use heap::ObjectId;
 use std::cell::{Ref, RefCell, RefMut};
 use std::collections::HashMap;
 use std::rc::Rc;
+use std::sync::Arc;
 use value::Value;
 
 #[derive(Debug, Clone)]
@@ -13,7 +14,7 @@ pub struct Module {
 
 #[derive(Debug, Clone)]
 pub struct ModuleGroup {
-    pub mods: RefCell<HashMap<String, ObjectId>>,
+    pub mods: Arc<RefCell<HashMap<String, ObjectId>>>,
 }
 
 #[derive(Debug, Clone)]
@@ -67,6 +68,12 @@ impl ModuleRef {
 }
 
 impl ModuleGroup {
+    pub fn new() -> ModuleGroup {
+        ModuleGroup {
+            mods: Arc::new(RefCell::new(HashMap::new())),
+        }
+    }
+
     pub fn get(&self, name: &str) -> Option<ObjectId> {
         self.mods.borrow().get(name).cloned()
     }

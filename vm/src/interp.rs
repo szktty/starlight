@@ -165,10 +165,8 @@ impl Interp {
     pub fn new() -> Interp {
         let queue = Arc::new(Queue::global(QueuePriority::Default));
         let heap = Heap::new(vec![queue.clone()]);
-        let mods_item = Content::ModuleGroup(Arc::new(ModuleGroup {
-            mods: RefCell::new(HashMap::new()),
-        }));
-        let mgroup_id = heap.create(mods_item).id;
+        let mgroup = Content::ModuleGroup(Arc::new(ModuleGroup::new()));
+        let mgroup_id = heap.create(mgroup).id;
         Interp {
             queue,
             heap,
@@ -176,7 +174,7 @@ impl Interp {
         }
     }
 
-    fn get_module_group<F, U>(&self, f: F) -> U
+    pub fn get_module_group<F, U>(&self, f: F) -> U
     where
         F: FnOnce(&ModuleGroup) -> U,
     {
@@ -460,7 +458,7 @@ impl Interp {
                     Err(err) => panic!("# call error {:?}", err),
                 }
             }
-            Value::Nif(nif) => match ((*nif).fun)(&args) {
+            Value::Nif(nif) => match ((*nif).fun)(interp.clone(), &args) {
                 Ok(val) => Ok(val),
                 Err(err) => return Err(err),
             },

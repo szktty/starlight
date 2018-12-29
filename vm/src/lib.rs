@@ -21,6 +21,7 @@ pub mod interp;
 pub mod interp_init;
 pub mod lib_io;
 pub mod lib_strl_genlists;
+pub mod lib_strl_runtime;
 pub mod module;
 pub mod opcode;
 pub mod process;

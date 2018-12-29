@@ -1,3 +1,4 @@
+use interp::Interp;
 use module::Module;
 use std::cell::RefCell;
 use std::result::Result;
@@ -15,7 +16,7 @@ pub fn new() -> Module {
     m
 }
 
-fn nif_create(args: &Vec<Value>) -> Result<Value, String> {
+fn nif_create(_interp: Arc<Interp>, args: &Vec<Value>) -> Result<Value, String> {
     let arg = args.get(0).unwrap();
     let mut lists: Vec<List> = Vec::new();
     match arg {
@@ -35,7 +36,7 @@ fn nif_create(args: &Vec<Value>) -> Result<Value, String> {
     )))))
 }
 
-fn nif_next(args: &Vec<Value>) -> Result<Value, String> {
+fn nif_next(_interp: Arc<Interp>, args: &Vec<Value>) -> Result<Value, String> {
     let gen = match args.get(0).unwrap() {
         Value::ListGenerator(gen) => gen,
         arg => return Err(format!("not list generator {:?}", arg)),
@@ -48,7 +49,7 @@ fn nif_next(args: &Vec<Value>) -> Result<Value, String> {
     }
 }
 
-fn nif_add(args: &Vec<Value>) -> Result<Value, String> {
+fn nif_add(_interp: Arc<Interp>, args: &Vec<Value>) -> Result<Value, String> {
     let gen = match args.get(0).unwrap() {
         Value::ListGenerator(gen) => gen,
         arg => return Err(format!("not list generator {:?}", arg)),
@@ -60,7 +61,7 @@ fn nif_add(args: &Vec<Value>) -> Result<Value, String> {
     Ok(Value::Nil)
 }
 
-fn nif_collect(args: &Vec<Value>) -> Result<Value, String> {
+fn nif_collect(_interp: Arc<Interp>, args: &Vec<Value>) -> Result<Value, String> {
     let gen = match args.get(0).unwrap() {
         Value::ListGenerator(gen) => gen,
         arg => return Err(format!("not list generator {:?}", arg)),

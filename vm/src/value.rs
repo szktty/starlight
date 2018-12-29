@@ -1,4 +1,5 @@
 use heap::ObjectId;
+use interp::Interp;
 use module::Module;
 use opcode::Opcode;
 use std::cell::RefCell;
@@ -67,7 +68,7 @@ impl fmt::Debug for CompiledCode {
     }
 }
 
-pub type NifFun = fn(args: &Vec<Value>) -> Result<Value, String>;
+pub type NifFun = fn(interp: Arc<Interp>, args: &Vec<Value>) -> Result<Value, String>;
 
 #[derive(Clone)]
 pub struct Nif {
@@ -85,12 +86,14 @@ impl Value {
     pub fn nif(arity: usize, fun: NifFun) -> Value {
         Value::Nif(Arc::new(Nif { arity, fun }))
     }
+
     pub fn callable(&self) -> bool {
         match self {
             Value::CompiledCode(_) | Value::Nif(_) => true,
             _ => false,
         }
     }
+
     pub fn get_string(&self) -> Option<&String> {
         match self {
             Value::Atom(s) => Some(s),
@@ -98,6 +101,14 @@ impl Value {
             _ => None,
         }
     }
+
+    pub fn get_tuple(&self) -> Option<&Vec<Value>> {
+        match self {
+            Value::Tuple(list) => Some(list),
+            _ => None,
+        }
+    }
+
     pub fn eq(&self, other: &Value) -> bool {
         match (self, other) {
             (Value::Int(a), Value::Int(b)) => a == b,
