@@ -5,7 +5,6 @@ type t =
   | List
   | Tuple
   | Process
-  | Module
 
 let to_string = function
   | String -> "string"
@@ -14,7 +13,6 @@ let to_string = function
   | List -> "list"
   | Tuple -> "tuple"
   | Process -> "process"
-  | Module -> "module"
 
 let to_repr = function
   | String -> "String"
@@ -23,4 +21,3 @@ let to_repr = function
   | List -> "List"
   | Tuple -> "Tuple"
   | Process -> "Process"
-  | Module -> "Module"

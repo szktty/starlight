@@ -35,6 +35,7 @@ pub enum Opcode {
     MakeOk(u8),
     MakeError(u8),
     Apply(u8),
+    Spawn,
     BlockSize,
     ListLen,
     ListCons,

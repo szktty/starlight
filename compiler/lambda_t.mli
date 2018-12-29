@@ -7,6 +7,7 @@ type t =
   | Let of binding list * t
   | Seq of t * t (* exp1, exp2 *)
   | Fun of string option * Id.t list * t (* name, params, body *)
+  | Fun_sig of string * int (* name, arity *)
   | Fun_body
   | If of t * t * t (* cond, true, false *)
   | Switch of case list
@@ -18,6 +19,7 @@ type t =
   | For of for_
   | Loop of t * t (* cond, body *)
   | Apply of t * t list (* fun, args *)
+  | Spawn of t * t (* fun, args *)
   | Get_global of t (* key *)
   | Get_prop of t * t (* load, key *)
   | Get_field of t * int (* load, index *)
@@ -95,14 +97,11 @@ and event_kind =
   | Ev_fun
 
 and module_ = {
-  mod_attrs : attr list;
+  mod_name : string option;
+  mod_authors : string list;
+  mod_exports : (string * int) list;
   mod_code : t;
 }
-
-and attr =
-  | Modname of string
-  | Authors of string list
-  | Exports of (string * int) list
 
 and binding = Id.t * t
 

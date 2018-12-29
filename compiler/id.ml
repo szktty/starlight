@@ -9,7 +9,7 @@ let gen () =
 
 let next gen name =
   gen := !gen + 1;
-  Printf.sprintf "%s/%d" name !gen
+  Printf.sprintf "%s#%d" name !gen
 
 let param gen =
   next gen "*p*"

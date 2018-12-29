@@ -1,7 +1,8 @@
+use interp::Interp;
 use module::Module;
 use std::cell::RefCell;
-use std::rc::Rc;
 use std::result::Result;
+use std::sync::{Arc, Mutex};
 use value::{List, ListGenerator, Value};
 
 pub fn new() -> Module {
@@ -15,7 +16,7 @@ pub fn new() -> Module {
     m
 }
 
-fn nif_create(args: &Vec<Value>) -> Result<Value, String> {
+fn nif_create(_interp: Arc<Interp>, args: &Vec<Value>) -> Result<Value, String> {
     let arg = args.get(0).unwrap();
     let mut lists: Vec<List> = Vec::new();
     match arg {
@@ -30,37 +31,42 @@ fn nif_create(args: &Vec<Value>) -> Result<Value, String> {
         _ => return Err(format!("not tuple {:?}", arg)),
     }
     let body = ListGenerator::new(lists);
-    Ok(Value::ListGenerator(Rc::new(RefCell::new(body))))
+    Ok(Value::ListGenerator(Arc::new(Mutex::new(RefCell::new(
+        body,
+    )))))
 }
 
-fn nif_next(args: &Vec<Value>) -> Result<Value, String> {
+fn nif_next(_interp: Arc<Interp>, args: &Vec<Value>) -> Result<Value, String> {
     let gen = match args.get(0).unwrap() {
         Value::ListGenerator(gen) => gen,
         arg => return Err(format!("not list generator {:?}", arg)),
     };
-    let mut genref = gen.borrow_mut();
+    let lock = gen.lock().unwrap();
+    let mut genref = lock.borrow_mut();
     match genref.next() {
         None => Ok(Value::Nil),
-        Some(values) => Ok(Value::Tuple(Rc::new(values))),
+        Some(values) => Ok(Value::Tuple(Arc::new(values))),
     }
 }
 
-fn nif_add(args: &Vec<Value>) -> Result<Value, String> {
+fn nif_add(_interp: Arc<Interp>, args: &Vec<Value>) -> Result<Value, String> {
     let gen = match args.get(0).unwrap() {
         Value::ListGenerator(gen) => gen,
         arg => return Err(format!("not list generator {:?}", arg)),
     };
     let value = args.get(1).unwrap();
-    let mut genref = gen.borrow_mut();
+    let lock = gen.lock().unwrap();
+    let mut genref = lock.borrow_mut();
     genref.add(value.clone());
     Ok(Value::Nil)
 }
 
-fn nif_collect(args: &Vec<Value>) -> Result<Value, String> {
+fn nif_collect(_interp: Arc<Interp>, args: &Vec<Value>) -> Result<Value, String> {
     let gen = match args.get(0).unwrap() {
         Value::ListGenerator(gen) => gen,
         arg => return Err(format!("not list generator {:?}", arg)),
     };
-    let value = gen.borrow().collect();
-    Ok(Value::List(Rc::new(List::from_list(&value))))
+    let lock = gen.lock().unwrap();
+    let value = lock.borrow().collect();
+    Ok(Value::List(Arc::new(List::from_list(&value))))
 }

@@ -20,8 +20,20 @@ let rec to_sexp = function
       | Ev_fun -> Sexp.tagged "fun_body" body
     end
   | Module m ->
-    let attrs = List.map m.mod_attrs ~f:modattr_to_sexp in
-    Sexp.tagged "module" (List.append attrs [to_sexp m.mod_code])
+    let attr name value =
+      Sexp.List [Sexp.Atom name; value]
+    in
+    Sexp.tagged "module" [
+      attr "name" (Sexp.Atom (Option.value_exn m.mod_name));
+      attr "authors"
+        (Sexp.List (List.map m.mod_authors
+                      ~f:(fun auth -> Sexp.Atom auth)));
+      attr "exports"
+        (Sexp.List (List.map m.mod_exports
+                      ~f:(fun (name, arity) ->
+                          Sexp.Atom (sprintf "%s/%d" name arity))));
+      to_sexp m.mod_code
+    ]
   | Let (binds, exp) ->
     let binds1 =
       List.map binds
@@ -31,12 +43,17 @@ let rec to_sexp = function
     Sexp.tagged "let" [Sexp.List binds1; to_sexp exp]
   | Fun (name, params, body) ->
     Sexp.tagged "fun" [
+      Sexp.Atom (Option.value name ~default:"<none>");
       Sexp.List (List.map params ~f:(fun id -> Sexp.Atom id));
       to_sexp body]
+  | Fun_sig (name, arity) ->
+    Sexp.tagged "fun_sig" [Sexp.Atom name; Sexp.Atom (Int.to_string arity)]
   | Seq (exp1, exp2) ->
     Sexp.tagged "seq" [to_sexp exp1; to_sexp exp2]
   | Apply (f, args) ->
     Sexp.tagged "apply" (to_sexp f :: List.map args ~f:to_sexp)
+  | Spawn (f, args) ->
+    Sexp.tagged "spawn" [to_sexp f; to_sexp args]
   | If (cond, then_, else_) ->
     Sexp.tagged "if" [to_sexp cond; to_sexp then_; to_sexp else_]
   | Switch _ ->
@@ -62,8 +79,8 @@ let rec to_sexp = function
     Sexp.tagged "loop" [to_sexp cond; to_sexp body]
   | Make_block (tag, elts) ->
     Sexp.tagged "make_block"
-      (Sexp.Atom (Block_tag.to_string tag) ::
-       List.map elts  ~f:to_sexp)
+      [Sexp.Atom (Block_tag.to_string tag);
+       Sexp.List (List.map elts ~f:to_sexp)]
   | Local name -> Sexp.Atom ("$" ^ name)
   | Get_module -> Sexp.Atom "getmodule"
   | Get_prop (map, key) ->
@@ -120,9 +137,10 @@ let rec to_sexp = function
   | String s -> Sexp.tagged "string" [String.sexp_of_t s]
   | Int s -> String.sexp_of_t s
   | Float s -> String.sexp_of_t s
-  | Block (tag, exps) ->
+  | Block (tag, elts) ->
     Sexp.tagged "block"
-      (Sexp.Atom (Block_tag.to_string tag) :: List.map exps ~f:to_sexp)
+      [Sexp.Atom (Block_tag.to_string tag);
+       Sexp.List (List.map elts ~f:to_sexp)]
   | Bitstr bits ->
     Sexp.tagged "bitstr" (bits_to_sexp bits)
   | Make_bitstr bits ->
@@ -185,18 +203,6 @@ let rec to_sexp = function
   (* TODO: others *)
   | Nop -> Sexp.Atom "nop"
   | _ -> Sexp.Atom "<?>"
-
-and modattr_to_sexp = function
-  | Modname name ->
-    Sexp.tagged "name" [Sexp.Atom name]
-  | Authors names ->
-    Sexp.tagged "authors"
-      (List.map names ~f:(fun name -> Sexp.Atom name))
-  | Exports sigs ->
-    Sexp.tagged "exports"
-      (List.map sigs
-         ~f:(fun (name, arity) ->
-             Sexp.Atom (Printf.sprintf "%s/%d" name arity)))
 
 and opt_to_sexp exp =
   Option.value_map exp

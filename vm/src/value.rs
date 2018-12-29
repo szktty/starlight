@@ -1,31 +1,32 @@
+use heap::ObjectId;
+use interp::Interp;
 use module::Module;
 use opcode::Opcode;
 use std::cell::RefCell;
 use std::fmt;
 use std::iter::Iterator;
-use std::rc::Rc;
 use std::result::Result;
+use std::sync::{Arc, Mutex};
 
 // TODO: 1 word
 #[derive(Debug, Clone)]
 pub enum Value {
-    Atom(Rc<String>),
+    Atom(Arc<String>),
     Bool(bool),
     Int(i64),
-    String(Rc<String>),
+    String(Arc<String>),
     Nil,
-    List(Rc<List>),
-    Tuple(Rc<Vec<Value>>),
-    CompiledCode(Rc<CompiledCode>),
-    Nif(Rc<Nif>),
-    Closure(Rc<Closure>),
-    Module(Rc<Module>),
-    ModuleName(Rc<String>),
-    Binary(Rc<Vec<Value>>),
-    Array(Rc<Vec<Value>>),
+    List(Arc<List>),
+    Tuple(Arc<Vec<Value>>),
+    CompiledCode(Arc<CompiledCode>),
+    Nif(Arc<Nif>),
+    Closure(Arc<Closure>),
+    Module(ObjectId),
+    Binary(Arc<Vec<Value>>),
+    Array(Arc<Vec<Value>>),
     Bitstr32(u8, u32),
-    Bitstr(Rc<Bitstr>),
-    ListGenerator(Rc<RefCell<ListGenerator>>),
+    Bitstr(Arc<Bitstr>),
+    ListGenerator(Arc<Mutex<RefCell<ListGenerator>>>),
 }
 
 #[derive(Debug, Clone)]
@@ -47,7 +48,7 @@ pub trait Callable {
 
 #[derive(Debug, Clone)]
 pub struct Closure {
-    pub fun: Rc<CompiledCode>,
+    pub fun: Arc<CompiledCode>,
 }
 
 #[derive(Clone)]
@@ -67,7 +68,7 @@ impl fmt::Debug for CompiledCode {
     }
 }
 
-pub type NifFun = fn(args: &Vec<Value>) -> Result<Value, String>;
+pub type NifFun = fn(interp: Arc<Interp>, args: &Vec<Value>) -> Result<Value, String>;
 
 #[derive(Clone)]
 pub struct Nif {
@@ -83,14 +84,16 @@ impl fmt::Debug for Nif {
 
 impl Value {
     pub fn nif(arity: usize, fun: NifFun) -> Value {
-        Value::Nif(Rc::new(Nif { arity, fun }))
+        Value::Nif(Arc::new(Nif { arity, fun }))
     }
+
     pub fn callable(&self) -> bool {
         match self {
             Value::CompiledCode(_) | Value::Nif(_) => true,
             _ => false,
         }
     }
+
     pub fn get_string(&self) -> Option<&String> {
         match self {
             Value::Atom(s) => Some(s),
@@ -98,6 +101,14 @@ impl Value {
             _ => None,
         }
     }
+
+    pub fn get_tuple(&self) -> Option<&Vec<Value>> {
+        match self {
+            Value::Tuple(list) => Some(list),
+            _ => None,
+        }
+    }
+
     pub fn eq(&self, other: &Value) -> bool {
         match (self, other) {
             (Value::Int(a), Value::Int(b)) => a == b,
@@ -136,7 +147,7 @@ impl Bitstr {
 
 impl List {
     pub fn nil_value() -> Value {
-        Value::List(Rc::new(List::Nil))
+        Value::List(Arc::new(List::Nil))
     }
 
     pub fn new(value: Value, next: Value) -> List {
@@ -154,11 +165,28 @@ impl List {
     }
 
     pub fn to_value(self) -> Value {
-        Value::List(Rc::new(self))
+        Value::List(Arc::new(self))
+    }
+
+    pub fn to_vec(&self) -> Option<Vec<Value>> {
+        let mut vec = Vec::new();
+        let mut e = self;
+        loop {
+            match e {
+                List::Cons { value, next } => match next {
+                    Value::List(list) => {
+                        vec.push(value.clone());
+                        e = list;
+                    }
+                    _ => return None,
+                },
+                List::Nil => return Some(vec),
+            }
+        }
     }
 
     pub fn iter(&self) -> ListIter {
-        ListIter::new(Value::List(Rc::new(self.clone())))
+        ListIter::new(Value::List(Arc::new(self.clone())))
     }
 
     pub fn length(&self) -> Option<usize> {

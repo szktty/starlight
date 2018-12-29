@@ -1,6 +1,7 @@
 use interp::Interp;
 use lib_io;
 use lib_strl_genlists;
+use lib_strl_runtime;
 
 pub struct InterpInit {
     pub interp: Interp,
@@ -14,8 +15,11 @@ impl InterpInit {
     }
 
     pub fn init_libs(&mut self) {
-        self.interp
-            .add_modules(vec![lib_io::new(), lib_strl_genlists::new()])
+        self.interp.install_modules(vec![
+            lib_io::new(),
+            lib_strl_genlists::new(),
+            lib_strl_runtime::new(),
+        ])
     }
 }
 

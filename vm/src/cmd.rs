@@ -3,17 +3,17 @@ use clap::App;
 use config::{set_global, Config};
 use interp::Interp;
 use interp_init;
-use std::rc::Rc;
+use std::sync::Arc;
 use value::Value;
 
 pub struct Command {
-    pub interp: Interp,
+    pub interp: Arc<Interp>,
 }
 
 impl Command {
     pub fn new() -> Command {
         Command {
-            interp: interp_init::init(),
+            interp: Arc::new(interp_init::init()),
         }
     }
 
@@ -32,25 +32,26 @@ impl Command {
             Err(msg) => panic!("Error: invalid bytecode format: {}", msg),
             Ok(bc) => {
                 debug!("execute module initialization function");
-                let init = Rc::new(bc.main.to_value_code().clone());
+                let init = Arc::new(bc.main.to_value_code().clone());
+                let interp = self.interp.clone();
                 {
-                    match self.interp.eval(None, init.clone(), Vec::new()) {
+                    match Interp::eval(interp.clone(), None, init.clone(), Vec::new()) {
                         Ok(_) => {}
                         Err(msg) => panic!("# error: {}", msg),
                     };
                 }
 
                 debug!("get module");
-                let m = match self.interp.get_module(&bc.module) {
+                let m = match interp.get_module(&bc.module) {
                     None => panic!("# main: module not found {}", bc.module),
-                    Some(m) => m,
+                    Some((_, m)) => m,
                 };
 
                 debug!("execute 'main' function");
                 {
                     match m.fields.get("main") {
                         Some(Value::CompiledCode(code)) => {
-                            match self.interp.eval(None, code.clone(), Vec::new()) {
+                            match Interp::eval(interp.clone(), None, code.clone(), Vec::new()) {
                                 Ok(value) => debug!("# main => {:?}", value),
                                 Err(msg) => println!("# error: {}", msg),
                             }
@@ -61,6 +62,7 @@ impl Command {
                 }
             }
         }
+        self.interp.pool.wait_all();
     }
 }
 

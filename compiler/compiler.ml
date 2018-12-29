@@ -213,7 +213,7 @@ end
 let compile form =
   let open Context in
   let open Printf in
-  let info = { Bytecode.Module.name = "?"; auths = []; exports = [] } in
+  let mod_base : Lambda_t.module_ option ref = ref None in
   let meta = Id.gen () in
 
   let rec f ctx = function
@@ -229,16 +229,7 @@ let compile form =
                     pc_loc = ev.ev_loc } :: ctx.locs
 
     | Module m ->
-      List.iter m.mod_attrs
-        ~f:(function
-            | Modname name ->
-              info.name <- name
-            | Authors names ->
-              info.auths <- List.append info.auths names
-            | Exports sigs ->
-              info.exports <- List.append info.exports sigs
-              (*| _ -> failwith "notimpl");*)
-          );
+      mod_base := Some m;
       add_comment ctx (next_pc ctx) "begin module";
       f ctx m.mod_code;
       add_comment ctx (last_pc ctx) "end module"
@@ -370,6 +361,14 @@ let compile form =
       let nargs = List.length args in
       add_op ctx (Apply nargs);
       popn ctx nargs
+
+    | Spawn (fn, args) ->
+      let id = Id.next meta "*spawn*" in
+      add_comment ctx (next_pc ctx) (sprintf "%s fun" id);
+      f ctx fn;
+      add_comment ctx (next_pc ctx) (sprintf "%s args" id);
+      f ctx args;
+      add_op_pop ctx Spawn
 
     | Get_global name ->
       add_comment ctx (next_pc ctx) "get global";
@@ -570,4 +569,12 @@ let compile form =
       ~st_base:0 in
   f ctx form;
   add_op ctx Return_undef;
-  info, Context.to_code ctx
+
+  let m = match !mod_base with
+    | None -> failwith "module not found"
+    | Some m -> m
+  in
+  { Bytecode.Module.name = Option.value_exn m.mod_name;
+    auths = m.mod_authors;
+    exports = m.mod_exports },
+  Context.to_code ctx

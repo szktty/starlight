@@ -1,5 +1,7 @@
+use interp::Interp;
 use module::Module;
 use std::result::Result;
+use std::sync::Arc;
 use value::Value;
 
 pub fn new() -> Module {
@@ -9,7 +11,7 @@ pub fn new() -> Module {
     m
 }
 
-fn nif_fwrite(args: &Vec<Value>) -> Result<Value, String> {
+fn nif_fwrite(_interp: Arc<Interp>, args: &Vec<Value>) -> Result<Value, String> {
     let fmt_val = args.get(0).unwrap();
     match fmt_val.get_string() {
         None => {
