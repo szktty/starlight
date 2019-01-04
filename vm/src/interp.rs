@@ -1,14 +1,16 @@
+use arglist::ArgList;
 use dispatch::{Queue, QueuePriority};
 use heap::{Content, Heap, Object, ObjectId};
 use interp_init;
+use list::{List, ListGenerator};
 use module::{Module, ModuleGroup};
 use opcode::{BlockTag, Opcode};
+use result::Result;
 use std::cell::RefCell;
 use std::collections::HashMap;
-use std::result::Result;
 use std::sync::{Arc, Mutex};
 use thread_pool::ThreadPool;
-use value::{CompiledCode, List, Value};
+use value::{CompiledCode, Value};
 
 #[derive(Debug, Clone)]
 pub struct Caller {
@@ -28,7 +30,7 @@ pub struct Context {
 
 pub struct Interp {
     pub pool: Arc<ThreadPool>,
-    pub heap: Heap,
+    pub heap: Arc<Heap>,
     pub mgroup_id: ObjectId,
 }
 
@@ -165,13 +167,13 @@ impl Context {
 impl Interp {
     pub fn new() -> Interp {
         let pool = Arc::new(ThreadPool::new());
-        let heap = Heap::new(pool.clone());
+        let heap = Arc::new(Heap::new(pool.clone()));
         let mgroup = Content::ModuleGroup(Arc::new(ModuleGroup::new()));
-        let mgroup_id = heap.create(mgroup).id;
+        let mgroup_id = heap.create(|_| mgroup);
         Interp {
             pool,
             heap,
-            mgroup_id,
+            mgroup_id: mgroup_id,
         }
     }
 
@@ -205,8 +207,7 @@ impl Interp {
     pub fn add_module(&self, m: Arc<Module>) {
         self.get_module_group(|group| {
             let name = m.get_name().unwrap();
-            let obj = self.heap.create(Content::Module(m));
-            group.add(&name, obj.id);
+            group.add(&name, self.heap.create(|_| Content::Module(m)));
         });
     }
 
@@ -221,7 +222,7 @@ impl Interp {
         caller: Option<&Context>,
         code: Arc<CompiledCode>,
         args: Vec<Value>,
-    ) -> Result<Value, String> {
+    ) -> Result<Value> {
         let mut ctx = Context::new(caller, code.clone(), args);
         let ops = &(*code.clone()).ops;
         let op_size = ops.len();
@@ -242,7 +243,7 @@ impl Interp {
                 Opcode::LoadOk => ctx.load(Value::Atom(Arc::new("ok".to_string()))),
                 Opcode::LoadError => ctx.load(Value::Atom(Arc::new("error".to_string()))),
                 Opcode::LoadBitstr(size, val) => ctx.load(Value::Bitstr32(*size, *val)),
-                Opcode::LoadEmpty(BlockTag::List) => ctx.load(Value::List(Arc::new(List::Nil))),
+                Opcode::LoadEmpty(BlockTag::List) => ctx.load(interp.heap.get_list_nil().1),
                 Opcode::StorePopLocal(i) => {
                     let val = ctx.pop();
                     ctx.store(*i as usize, val);
@@ -325,14 +326,14 @@ impl Interp {
                     }
                     // TODO
                     // m.set_name(name);
-                    let obj = interp.heap.create(Content::Module(Arc::new(m)));
-                    ctx.load(Value::Module(obj.id));
+                    let id = interp.heap.create(|_| Content::Module(Arc::new(m)));
+                    ctx.load(Value::Module(id));
                 }
-                Opcode::MakeBlock(BlockTag::List, 0) => ctx.load(List::nil_value()),
+                Opcode::MakeBlock(BlockTag::List, 0) => ctx.load(interp.heap.get_list_nil().1),
                 Opcode::MakeBlock(BlockTag::List, _) => {
                     let tail = ctx.pop();
                     let head = ctx.pop();
-                    ctx.load(Value::List(Arc::new(List::new(head, tail))));
+                    ctx.load(List::new_value(&interp.heap, head, tail))
                 }
                 Opcode::MakeBlock(BlockTag::Tuple, size) => {
                     let vals = ctx.popn(*size as usize);
@@ -349,10 +350,12 @@ impl Interp {
                     let args = ctx.pop();
                     let fval = ctx.pop();
                     println!("# spawn f {:?}, {:?}", fval, args);
-                    let args = match args {
-                        Value::List(list) => (*list).to_vec().unwrap(),
-                        _ => panic!("# spawn: args must be list"),
-                    };
+                    let args = interp
+                        .heap
+                        .get_list(&args)
+                        .unwrap()
+                        .to_vec(&interp.heap)
+                        .unwrap();
                     let interp2 = interp.clone();
                     let ctx2 = ctx.clone();
                     interp.pool.group.async(&interp.pool.user, move || {
@@ -364,28 +367,21 @@ impl Interp {
                 }
                 Opcode::BlockSize => {
                     let val = ctx.pop();
-                    match val {
-                        Value::List(list) => match list.length() {
-                            Some(i) => ctx.load(Value::Int(i as i64)),
-                            None => panic!("# block size: bad list"),
-                        },
-                        _ => panic!("# block size: not block {:?}", val),
+                    let list = interp.heap.get_list(&val).unwrap();
+                    match list.len(interp.heap.clone()) {
+                        Some(i) => ctx.load(Value::Int(i as i64)),
+                        None => panic!("# block size: bad list"),
                     }
                 }
                 Opcode::ListLen => {
                     let val = ctx.pop();
-                    match val {
-                        Value::List(list) => match (*list).length() {
-                            None => panic!("# list length: invalid list {:?}", list),
-                            Some(len) => ctx.load(Value::Int(len as i64)),
-                        },
-                        _ => panic!("# list length: not list {:?}", val),
-                    }
+                    let list = interp.heap.get_list(&val).unwrap();
+                    ctx.load(Value::Int(list.len(interp.heap.clone()).unwrap() as i64))
                 }
                 Opcode::ListCons => {
                     let tail = ctx.pop();
                     let head = ctx.pop();
-                    ctx.load(List::new(head, tail).to_value());
+                    ctx.load(List::new_value(&interp.heap, head, tail))
                 }
                 Opcode::ListComprGen(_) => {
                     // TODO
@@ -451,18 +447,16 @@ impl Interp {
         ctx: &Context,
         fval: Value,
         args: Vec<Value>,
-    ) -> Result<Value, String> {
+    ) -> Result<Value> {
         match fval {
-            Value::CompiledCode(code) => {
-                match Interp::eval(interp.clone(), Some(ctx), code, args) {
+            Value::CompiledCode(code) => Interp::eval(interp.clone(), Some(ctx), code, args),
+            Value::Nif(nif) => {
+                let arglist = try!(ArgList::new(interp.heap.clone(), args.len(), args));
+                match ((*nif).fun)(interp, &arglist) {
                     Ok(val) => Ok(val),
-                    Err(err) => panic!("# call error {:?}", err),
+                    Err(err) => return Err(err),
                 }
             }
-            Value::Nif(nif) => match ((*nif).fun)(interp.clone(), &args) {
-                Ok(val) => Ok(val),
-                Err(err) => return Err(err),
-            },
             _ => panic!("# apply: not function {:?}", fval),
         }
     }

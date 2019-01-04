@@ -1,9 +1,13 @@
+use arglist::ArgList;
+use error::{Error, ErrorKind};
+use heap::{Content, Heap};
 use interp::Interp;
+use list::{List, ListGenerator};
 use module::Module;
+use result::Result;
 use std::cell::RefCell;
-use std::result::Result;
 use std::sync::{Arc, Mutex};
-use value::{List, ListGenerator, Value};
+use value::Value;
 
 pub fn new() -> Module {
     let mut m = Module::with_name("strl_genlists");
@@ -16,57 +20,49 @@ pub fn new() -> Module {
     m
 }
 
-fn nif_create(_interp: Arc<Interp>, args: &Vec<Value>) -> Result<Value, String> {
-    let arg = args.get(0).unwrap();
+fn nif_create(interp: Arc<Interp>, args: &ArgList) -> Result<Value> {
+    let tuple = try!(args.get_tuple(0));
     let mut lists: Vec<List> = Vec::new();
-    match arg {
-        Value::Tuple(tuple) => {
-            for e in tuple.iter() {
-                match e {
-                    Value::List(e) => lists.push((**e).clone()),
-                    _ => return Err(format!("not list {:?}", e)),
-                }
+    for e in tuple.iter() {
+        match e {
+            Value::List(id) => {
+                let list = interp.heap.get_content_list(*id).unwrap();
+                lists.push((*list).clone());
+            }
+            _ => {
+                return Err(Error::exception(
+                    ErrorKind::InvalidType,
+                    format!("not list {:?}", e),
+                ))
             }
         }
-        _ => return Err(format!("not tuple {:?}", arg)),
     }
-    let body = ListGenerator::new(lists);
-    Ok(Value::ListGenerator(Arc::new(Mutex::new(RefCell::new(
-        body,
-    )))))
+    let gen = ListGenerator::new(interp.heap.clone(), lists);
+    let id = interp
+        .heap
+        .create(|id| Content::ListGenerator(Arc::new(RefCell::new(gen))));
+    Ok(Value::ListGenerator(id))
 }
 
-fn nif_next(_interp: Arc<Interp>, args: &Vec<Value>) -> Result<Value, String> {
-    let gen = match args.get(0).unwrap() {
-        Value::ListGenerator(gen) => gen,
-        arg => return Err(format!("not list generator {:?}", arg)),
-    };
-    let lock = gen.lock().unwrap();
-    let mut genref = lock.borrow_mut();
+fn nif_next(interp: Arc<Interp>, args: &ArgList) -> Result<Value> {
+    let mut gen = try!(args.get_listgen(&interp.heap, 0));
+    let mut genref = (*gen).borrow_mut();
     match genref.next() {
         None => Ok(Value::Nil),
         Some(values) => Ok(Value::Tuple(Arc::new(values))),
     }
 }
 
-fn nif_add(_interp: Arc<Interp>, args: &Vec<Value>) -> Result<Value, String> {
-    let gen = match args.get(0).unwrap() {
-        Value::ListGenerator(gen) => gen,
-        arg => return Err(format!("not list generator {:?}", arg)),
-    };
-    let value = args.get(1).unwrap();
-    let lock = gen.lock().unwrap();
-    let mut genref = lock.borrow_mut();
+fn nif_add(interp: Arc<Interp>, args: &ArgList) -> Result<Value> {
+    let mut gen = try!(args.get_listgen(&interp.heap, 0));
+    let value = args.get(1);
+    let mut genref = (*gen).borrow_mut();
     genref.add(value.clone());
     Ok(Value::Nil)
 }
 
-fn nif_collect(_interp: Arc<Interp>, args: &Vec<Value>) -> Result<Value, String> {
-    let gen = match args.get(0).unwrap() {
-        Value::ListGenerator(gen) => gen,
-        arg => return Err(format!("not list generator {:?}", arg)),
-    };
-    let lock = gen.lock().unwrap();
-    let value = lock.borrow().collect();
-    Ok(Value::List(Arc::new(List::from_list(&value))))
+fn nif_collect(interp: Arc<Interp>, args: &ArgList) -> Result<Value> {
+    let mut gen = try!(args.get_listgen(&interp.heap, 0));
+    let mut genref = (*gen).borrow_mut();
+    Ok(List::value_from_list(&interp.heap, genref.collect()))
 }

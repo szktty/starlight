@@ -12,6 +12,7 @@ extern crate dispatch;
 #[macro_use]
 pub mod macros;
 
+pub mod arglist;
 pub mod bytecode;
 pub mod cmd;
 pub mod config;
@@ -22,8 +23,10 @@ pub mod interp_init;
 pub mod lib_io;
 pub mod lib_strl_genlists;
 pub mod lib_strl_runtime;
+pub mod list;
 pub mod module;
 pub mod opcode;
 pub mod process;
+pub mod result;
 pub mod thread_pool;
 pub mod value;

@@ -1,11 +1,13 @@
-use heap::ObjectId;
+use arglist::ArgList;
+use error::{Error, ErrorKind};
+use heap::{Content, Heap, ObjectId};
 use interp::Interp;
+use list::List;
 use module::Module;
 use opcode::Opcode;
+use result::Result;
 use std::cell::RefCell;
 use std::fmt;
-use std::iter::Iterator;
-use std::result::Result;
 use std::sync::{Arc, Mutex};
 
 // TODO: 1 word
@@ -16,7 +18,7 @@ pub enum Value {
     Int(i64),
     String(Arc<String>),
     Nil,
-    List(Arc<List>),
+    List(ObjectId),
     Tuple(Arc<Vec<Value>>),
     CompiledCode(Arc<CompiledCode>),
     Nif(Arc<Nif>),
@@ -26,13 +28,7 @@ pub enum Value {
     Array(Arc<Vec<Value>>),
     Bitstr32(u8, u32),
     Bitstr(Arc<Bitstr>),
-    ListGenerator(Arc<Mutex<RefCell<ListGenerator>>>),
-}
-
-#[derive(Debug, Clone)]
-pub enum List {
-    Cons { value: Value, next: Value },
-    Nil,
+    ListGenerator(ObjectId),
 }
 
 #[derive(Debug, Clone)]
@@ -68,7 +64,7 @@ impl fmt::Debug for CompiledCode {
     }
 }
 
-pub type NifFun = fn(interp: Arc<Interp>, args: &Vec<Value>) -> Result<Value, String>;
+pub type NifFun = fn(interp: Arc<Interp>, args: &ArgList) -> Result<Value>;
 
 #[derive(Clone)]
 pub struct Nif {
@@ -115,6 +111,7 @@ impl Value {
             _ => false,
         }
     }
+
     pub fn ne(&self, other: &Value) -> bool {
         !self.eq(other)
     }
@@ -125,7 +122,7 @@ impl Value {
             Value::Bool(v) => format!("{}", v),
             Value::Int(v) => format!("{}", v),
             Value::String(s) => format!("{:?}", s),
-            Value::List(list) => list.to_string(),
+            Value::List(id) => format!("list({}", id.id),
             _ => format!("{:?}", self),
         }
     }
@@ -143,208 +140,4 @@ impl Bitstr {
     #[inline]
     pub fn new(size)
     */
-}
-
-impl List {
-    pub fn nil_value() -> Value {
-        Value::List(Arc::new(List::Nil))
-    }
-
-    pub fn new(value: Value, next: Value) -> List {
-        List::Cons { value, next }
-    }
-
-    pub fn from_list(values: &Vec<Value>) -> List {
-        values
-            .iter()
-            .rev()
-            .fold(List::Nil, |next, value| List::Cons {
-                value: value.clone(),
-                next: next.to_value(),
-            })
-    }
-
-    pub fn to_value(self) -> Value {
-        Value::List(Arc::new(self))
-    }
-
-    pub fn to_vec(&self) -> Option<Vec<Value>> {
-        let mut vec = Vec::new();
-        let mut e = self;
-        loop {
-            match e {
-                List::Cons { value, next } => match next {
-                    Value::List(list) => {
-                        vec.push(value.clone());
-                        e = list;
-                    }
-                    _ => return None,
-                },
-                List::Nil => return Some(vec),
-            }
-        }
-    }
-
-    pub fn iter(&self) -> ListIter {
-        ListIter::new(Value::List(Arc::new(self.clone())))
-    }
-
-    pub fn length(&self) -> Option<usize> {
-        let mut length: usize = 0;
-        let mut e = self;
-        loop {
-            match e {
-                List::Cons { next, .. } => match next {
-                    Value::List(list) => {
-                        length += 1;
-                        e = list;
-                    }
-                    _ => return None,
-                },
-                List::Nil => return Some(length),
-            }
-        }
-    }
-
-    pub fn get(&self, i: usize) -> Option<Value> {
-        let mut j: usize = 0;
-        let mut e = self;
-        loop {
-            match e {
-                List::Cons { value, next } => match next {
-                    Value::List(list) => {
-                        if i == j {
-                            return Some(value.clone());
-                        }
-                        j += 1;
-                        e = list;
-                    }
-                    _ => return None,
-                },
-                List::Nil => return None,
-            }
-        }
-    }
-
-    pub fn to_string(&self) -> String {
-        let mut elts: Vec<String> = Vec::new();
-        let mut last: Option<String> = None;
-        let mut e = self;
-        loop {
-            match e {
-                List::Cons { value, next } => {
-                    elts.push(value.to_string());
-                    match next {
-                        Value::List(list) => {
-                            e = list;
-                        }
-                        _ => {
-                            last = Some(next.to_string());
-                            break;
-                        }
-                    }
-                }
-                List::Nil => break,
-            }
-        }
-        format!(
-            "[{}{}]",
-            elts.join(", "),
-            match last {
-                None => "".to_string(),
-                Some(e) => format!("|{}", e),
-            }
-        )
-    }
-}
-
-pub struct ListIter {
-    cur: Value,
-}
-
-impl ListIter {
-    fn new(list: Value) -> ListIter {
-        ListIter { cur: list }
-    }
-}
-
-impl Iterator for ListIter {
-    type Item = Value;
-
-    fn next(&mut self) -> Option<Value> {
-        let (value, next) = {
-            match &self.cur {
-                Value::List(list) => match &(**list) {
-                    List::Nil => return None,
-                    List::Cons { value, next } => (value.clone(), next.clone()),
-                },
-                _ => return None,
-            }
-        };
-        self.cur = next;
-        Some(value)
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct ListGenerator {
-    lists: Vec<List>,
-    sum: usize,
-    i: usize,
-    accu: Vec<Value>,
-}
-
-impl ListGenerator {
-    pub fn new(lists: Vec<List>) -> ListGenerator {
-        let mut sum = 0;
-        for list in lists.iter() {
-            match list.length() {
-                None => {
-                    sum = 0;
-                    break;
-                }
-                Some(len) => sum += len,
-            }
-        }
-        ListGenerator {
-            lists,
-            sum,
-            i: 0,
-            accu: Vec::new(),
-        }
-    }
-
-    pub fn next(&mut self) -> Option<Vec<Value>> {
-        if self.i >= self.sum {
-            return None;
-        }
-        let mut i = self.i;
-        let mut elts: Vec<Value> = Vec::with_capacity(self.lists.len());
-        for list in self.lists.iter() {
-            match list.length() {
-                None => return None,
-                Some(0) => return None,
-                Some(len) => {
-                    let j = if i == 0 { 0 } else { i - (i / len) * len };
-                    match list.get(j) {
-                        None => return None,
-                        Some(elt) => {
-                            elts.push(elt.clone());
-                            i = if i == 0 { 0 } else { len / i };
-                        }
-                    }
-                }
-            }
-        }
-        self.i += 1;
-        Some(elts)
-    }
-
-    pub fn add(&mut self, value: Value) {
-        self.accu.push(value)
-    }
-
-    pub fn collect(&self) -> Vec<Value> {
-        self.accu.clone()
-    }
 }

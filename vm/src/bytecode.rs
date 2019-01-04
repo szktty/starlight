@@ -1,5 +1,7 @@
 // bytecode file
 
+use heap::{Heap, ObjectId};
+use list::List;
 use opcode::{BitstrEndian, BitstrSign, BitstrType, BlockTag, Opcode};
 use serde_json;
 use serde_json::Result;
@@ -7,7 +9,7 @@ use std::fs::File;
 use std::io::prelude::*;
 use std::sync::Arc;
 use value;
-use value::{Bitstr, CompiledCode, List, Value};
+use value::{Bitstr, CompiledCode, Value};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Bytecode {
@@ -44,13 +46,13 @@ pub fn from_file(file: &str) -> Result<Bytecode> {
 }
 
 impl BcConst {
-    pub fn to_value(&self) -> Value {
+    pub fn to_value(&self, heap: &Heap) -> Value {
         match self {
             BcConst::Atom(value) => Value::Atom(Arc::new(value.clone())),
             BcConst::Int(value) => Value::Int(value.parse().unwrap()),
             BcConst::String(value) => Value::String(Arc::new(value.clone())),
             BcConst::Function(value) => {
-                let code = value.to_value_code();
+                let code = value.to_value_code(heap);
                 Value::CompiledCode(Arc::new(code.clone()))
             }
             BcConst::Bitstr(size, value, _ty, _sign, _endian, _unit) => {
@@ -61,12 +63,12 @@ impl BcConst {
                     value: *value,
                 }))
             }
-            BcConst::Block(BlockTag::Binary, vals) => {
-                Value::Binary(Arc::new(vals.iter().map(|val| val.to_value()).collect()))
-            }
+            BcConst::Block(BlockTag::Binary, vals) => Value::Binary(Arc::new(
+                vals.iter().map(|val| val.to_value(heap)).collect(),
+            )),
             BcConst::Block(BlockTag::List, vals) => {
-                let elts = vals.iter().map(|val| val.to_value()).collect();
-                Value::List(Arc::new(List::from_list(&elts)))
+                let elts = vals.iter().map(|val| val.to_value(heap)).collect();
+                Value::List(List::from_list(heap, elts).get_id(heap))
             }
             _ => panic!("# not impl {:?}", self),
         }
@@ -74,11 +76,11 @@ impl BcConst {
 }
 
 impl BcCompiledCode {
-    pub fn to_value_code(&self) -> value::CompiledCode {
+    pub fn to_value_code(&self, heap: &Heap) -> value::CompiledCode {
         let consts: Vec<Value> = self
             .consts
             .iter()
-            .map(|cons| BcConst::to_value(cons))
+            .map(|cons| BcConst::to_value(cons, heap))
             .collect();
         CompiledCode {
             name: self.name.clone(),

@@ -1,6 +1,7 @@
+use arglist::ArgList;
 use interp::Interp;
 use module::Module;
-use std::result::Result;
+use result::Result;
 use std::sync::Arc;
 use value::Value;
 
@@ -11,8 +12,8 @@ pub fn new() -> Module {
     m
 }
 
-fn nif_fwrite(_interp: Arc<Interp>, args: &Vec<Value>) -> Result<Value, String> {
-    let fmt_val = args.get(0).unwrap();
+fn nif_fwrite(_interp: Arc<Interp>, args: &ArgList) -> Result<Value> {
+    let fmt_val = args.get(0);
     match fmt_val.get_string() {
         None => {
             // TODO: bad arg

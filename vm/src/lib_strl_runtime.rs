@@ -1,7 +1,9 @@
+use arglist::ArgList;
+use error::{Error, ErrorKind};
 use heap::Content;
 use interp::Interp;
 use module::Module;
-use std::result::Result;
+use result::Result;
 use std::sync::Arc;
 use value::Value;
 
@@ -14,11 +16,11 @@ pub fn new() -> Module {
     m
 }
 
-fn nif_create_module(interp: Arc<Interp>, args: &Vec<Value>) -> Result<Value, String> {
-    let attrs = args.get(0).unwrap();
-    let funs = args.get(1).unwrap();
+fn nif_create_module(interp: Arc<Interp>, args: &ArgList) -> Result<Value> {
+    let attrs = try!(args.get_tuple(0));
+    let funs = args.get(1);
     let mut m = Module::new();
-    for attr in attrs.get_tuple().unwrap() {
+    for attr in attrs {
         let elts = attr.get_tuple().unwrap();
         let name = elts.get(0).unwrap().get_string().unwrap();
         let value = elts.get(1).unwrap();
@@ -36,9 +38,15 @@ fn nif_create_module(interp: Arc<Interp>, args: &Vec<Value>) -> Result<Value, St
         let code = elts.get(1).unwrap();
         match code {
             Value::CompiledCode(_) | Value::Nif(_) => m.fields.insert(name.clone(), code.clone()),
-            _ => return Err("not function".to_string()),
+            _ => {
+                return Err(Error::exception(
+                    ErrorKind::InvalidType,
+                    "not function".to_string(),
+                ))
+            }
         };
     }
-    let obj = interp.heap.create(Content::Module(Arc::new(m)));
-    Ok(Value::Module(obj.id))
+    Ok(Value::Module(
+        interp.heap.create(|_| Content::Module(Arc::new(m))),
+    ))
 }

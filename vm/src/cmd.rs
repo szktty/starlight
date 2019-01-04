@@ -32,12 +32,12 @@ impl Command {
             Err(msg) => panic!("Error: invalid bytecode format: {}", msg),
             Ok(bc) => {
                 debug!("execute module initialization function");
-                let init = Arc::new(bc.main.to_value_code().clone());
                 let interp = self.interp.clone();
+                let init = Arc::new(bc.main.to_value_code(&interp.heap).clone());
                 {
                     match Interp::eval(interp.clone(), None, init.clone(), Vec::new()) {
                         Ok(_) => {}
-                        Err(msg) => panic!("# error: {}", msg),
+                        Err(msg) => panic!("# error: {:?}", msg),
                     };
                 }
 
@@ -53,7 +53,7 @@ impl Command {
                         Some(Value::CompiledCode(code)) => {
                             match Interp::eval(interp.clone(), None, code.clone(), Vec::new()) {
                                 Ok(value) => debug!("# main => {:?}", value),
-                                Err(msg) => println!("# error: {}", msg),
+                                Err(e) => println!("# error: {:?}", e),
                             }
                         }
                         Some(value) => panic!("# main/0 {:?} must be a function", value),

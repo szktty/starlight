@@ -1,17 +1,26 @@
 use dispatch::{Queue, SuspendGuard};
+use list::{List, ListGenerator};
 use module::{Module, ModuleGroup};
 use std::cell::RefCell;
 use std::collections::HashMap;
+use std::fmt;
 use std::sync::Arc;
 use thread_pool::ThreadPool;
+use value::Value;
 
-pub type ObjectId = usize;
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
+pub struct ObjectId {
+    pub id: usize,
+}
 
 pub struct Heap {
     pool: Arc<ThreadPool>,
     guards: RefCell<Vec<SuspendGuard>>,
     id: RefCell<usize>,
     store: RefCell<HashMap<ObjectId, Object>>,
+
+    // shared variables
+    list_nil: (ObjectId, Value),
 }
 
 #[derive(Debug, Clone)]
@@ -22,20 +31,43 @@ pub struct Object {
 
 #[derive(Debug, Clone)]
 pub enum Content {
+    Nil,
     Module(Arc<Module>),
     ModuleGroup(Arc<ModuleGroup>),
+    List(Arc<List>),
+    ListGenerator(Arc<RefCell<ListGenerator>>),
 }
 
+impl ObjectId {
+    #[inline]
+    pub fn new(id: usize) -> ObjectId {
+        ObjectId { id }
+    }
+}
+
+impl Object {
+    #[inline]
+    pub fn new(id: ObjectId, content: Content) -> Object {
+        Object { id, content }
+    }
+}
 unsafe impl Sync for Heap {}
 unsafe impl Send for Heap {}
 
 impl Heap {
     pub fn new(pool: Arc<ThreadPool>) -> Heap {
+        // shared values
+        let mut store = HashMap::new();
+        let nil_id = ObjectId::new(0);
+        let nil_obj = Object::new(nil_id, Content::List(Arc::new(List::Nil)));
+        store.insert(nil_id, nil_obj);
+
         Heap {
             pool,
             guards: RefCell::new(Vec::new()),
-            id: RefCell::new(0),
-            store: RefCell::new(HashMap::new()),
+            id: RefCell::new(1),
+            store: RefCell::new(store),
+            list_nil: (nil_id, Value::List(nil_id)),
         }
     }
 
@@ -65,17 +97,28 @@ impl Heap {
         self.get(id).map(|obj| obj.content)
     }
 
-    pub fn create(&self, content: Content) -> Object {
+    pub fn new_id(&self) -> ObjectId {
+        self.create(|_| Content::Nil)
+    }
+
+    pub fn create<F>(&self, f: F) -> ObjectId
+    where
+        F: FnOnce(ObjectId) -> Content,
+    {
         self.lock();
 
         let mut store = self.store.borrow_mut();
         let mut id = self.id.borrow_mut();
-        let obj = Object { id: *id, content };
-        store.insert(*id, obj.clone());
+        let oid = ObjectId::new(*id);
+        let obj = Object {
+            id: oid,
+            content: f(oid),
+        };
+        store.insert(oid, obj.clone());
         *id += 1;
 
         self.unlock();
-        obj
+        oid
     }
 
     pub fn update<F>(&self, obj: Object) -> Option<Object> {
@@ -84,5 +127,37 @@ impl Heap {
         let old = store.insert(obj.id, obj);
         self.unlock();
         old
+    }
+
+    pub fn get_content_list(&self, id: ObjectId) -> Option<Arc<List>> {
+        self.get_content(id).and_then(|c| match c {
+            Content::List(list) => Some(list.clone()),
+            _ => None,
+        })
+    }
+
+    // TODO: -> &(ObjectId, Value)
+    pub fn get_list_nil(&self) -> (ObjectId, Value) {
+        self.list_nil.clone()
+    }
+
+    pub fn get_list(&self, value: &Value) -> Option<Arc<List>> {
+        match value {
+            Value::List(id) => self.get_content_list(*id),
+            _ => None,
+        }
+    }
+
+    pub fn get_listgen(&self, id: ObjectId) -> Option<Arc<RefCell<ListGenerator>>> {
+        self.get_content(id).and_then(|c| match c {
+            Content::ListGenerator(gen) => Some(gen.clone()),
+            _ => None,
+        })
+    }
+}
+
+impl fmt::Debug for Heap {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Heap({})", *self.id.borrow())
     }
 }
