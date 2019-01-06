@@ -161,3 +161,51 @@ impl fmt::Debug for Heap {
         write!(f, "Heap({})", *self.id.borrow())
     }
 }
+
+// bridge (Value <-> T)
+#[derive(Debug, Clone)]
+pub struct Br<T: ToValue> {
+    heap: Arc<Heap>,
+    data: Arc<T>,
+}
+
+pub trait ToValue {
+    fn to_value(&self, heap: &Heap) -> Value;
+}
+
+impl<T: ToValue> Br<T> {
+    #[inline]
+    pub fn new(heap: Arc<Heap>, data: Arc<T>) -> Br<T> {
+        Br { heap, data }
+    }
+
+    #[inline]
+    pub fn cloned(&self) -> Arc<T> {
+        self.data.clone()
+    }
+
+    #[inline]
+    pub fn heap(&self) -> &Heap {
+        &*self.heap
+    }
+
+    #[inline]
+    pub fn heap_ref(&self) -> &Arc<Heap> {
+        &self.heap
+    }
+
+    #[inline]
+    pub fn data(&self) -> &T {
+        &*self.data
+    }
+
+    #[inline]
+    pub fn data_ref(&self) -> &Arc<T> {
+        &self.data
+    }
+
+    #[inline]
+    pub fn to_value(&self) -> Value {
+        (*self.data).to_value(&*self.heap)
+    }
+}

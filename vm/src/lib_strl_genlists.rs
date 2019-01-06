@@ -1,8 +1,8 @@
 use arglist::ArgList;
 use error::{Error, ErrorKind};
-use heap::{Content, Heap};
+use heap::{Br, Content, Heap};
 use interp::Interp;
-use list::{List, ListGenerator};
+use list::{BrList, List, ListGenerator};
 use module::Module;
 use result::Result;
 use std::cell::RefCell;
@@ -22,12 +22,11 @@ pub fn new() -> Module {
 
 fn nif_create(interp: Arc<Interp>, args: &ArgList) -> Result<Value> {
     let tuple = try!(args.get_tuple(0));
-    let mut lists: Vec<List> = Vec::new();
+    let mut lists: Vec<Br<List>> = Vec::new();
     for e in tuple.iter() {
-        match e {
-            Value::List(id) => {
-                let list = interp.heap.get_content_list(*id).unwrap();
-                lists.push((*list).clone());
+        match BrList::from_value(interp.heap.clone(), e) {
+            Some(br) => {
+                lists.push(br);
             }
             _ => {
                 return Err(Error::exception(

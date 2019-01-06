@@ -2,7 +2,7 @@ use arglist::ArgList;
 use dispatch::{Queue, QueuePriority};
 use heap::{Content, Heap, Object, ObjectId};
 use interp_init;
-use list::{List, ListGenerator};
+use list::{BrList, List, ListGenerator};
 use module::{Module, ModuleGroup};
 use opcode::{BlockTag, Opcode};
 use result::Result;
@@ -367,16 +367,16 @@ impl Interp {
                 }
                 Opcode::BlockSize => {
                     let val = ctx.pop();
-                    let list = interp.heap.get_list(&val).unwrap();
-                    match list.len(interp.heap.clone()) {
+                    let list = BrList::from_value(interp.heap.clone(), &val).unwrap();
+                    match BrList::len(&list) {
                         Some(i) => ctx.load(Value::Int(i as i64)),
                         None => panic!("# block size: bad list"),
                     }
                 }
                 Opcode::ListLen => {
                     let val = ctx.pop();
-                    let list = interp.heap.get_list(&val).unwrap();
-                    ctx.load(Value::Int(list.len(interp.heap.clone()).unwrap() as i64))
+                    let list = BrList::from_value(interp.heap.clone(), &val).unwrap();
+                    ctx.load(Value::Int(BrList::len(&list).unwrap() as i64))
                 }
                 Opcode::ListCons => {
                     let tail = ctx.pop();

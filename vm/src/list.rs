@@ -1,5 +1,5 @@
 use error::{Error, ErrorKind};
-use heap::{Content, Heap, Object, ObjectId};
+use heap::{Br, Content, Heap, Object, ObjectId, ToValue};
 use result::Result;
 use std::iter::Iterator;
 use std::sync::Arc;
@@ -15,26 +15,37 @@ pub enum List {
     Nil,
 }
 
-pub struct Iter {
-    heap: Arc<Heap>,
-    cur: Arc<List>,
-}
+pub enum BrList {}
 
 pub enum Cell {
     Proper(Value),
     Improper(Value, Value),
 }
 
+pub struct Iter {
+    heap: Arc<Heap>,
+    cur: Option<Value>,
+}
+
 #[derive(Debug, Clone)]
 pub struct ListGenerator {
-    heap: Arc<Heap>,
-    lists: Vec<List>,
+    lists: Vec<Br<List>>,
     sum: usize,
     i: usize,
     accu: Vec<Value>,
 }
 
 impl List {
+    pub fn get_content(heap: &Heap, value: &Value) -> Option<Arc<List>> {
+        match value {
+            Value::List(id) => heap.get_content(*id).and_then(|c| match c {
+                Content::List(list) => Some(list.clone()),
+                _ => None,
+            }),
+            _ => None,
+        }
+    }
+
     pub fn new_value(heap: &Heap, value: Value, next: Value) -> Value {
         let id = heap.create(|id| {
             let list = List::Cons {
@@ -105,14 +116,37 @@ impl List {
             }
         }
     }
+}
 
-    pub fn iter(&self, heap: Arc<Heap>) -> Iter {
-        Iter::new(heap, Arc::new(self.clone()))
+impl ToValue for List {
+    fn to_value(&self, heap: &Heap) -> Value {
+        Value::List(self.get_id(heap))
+    }
+}
+
+impl BrList {
+    pub fn from_value(heap: Arc<Heap>, value: &Value) -> Option<Br<List>> {
+        Some(Br::new(heap.clone(), List::get_content(&*heap, value)?))
     }
 
-    pub fn len(&self, heap: Arc<Heap>) -> Option<usize> {
+    pub fn id(list: &Br<List>) -> ObjectId {
+        list.data().get_id(list.heap())
+    }
+
+    pub fn to_value(list: &Br<List>) -> Value {
+        Value::List(BrList::id(list))
+    }
+
+    pub fn iter(list: &Br<List>) -> Iter {
+        Iter {
+            heap: list.heap_ref().clone(),
+            cur: Some(list.to_value()),
+        }
+    }
+
+    pub fn len(list: &Br<List>) -> Option<usize> {
         let mut len = 0;
-        for cell in self.iter(heap) {
+        for cell in BrList::iter(list) {
             match cell {
                 Cell::Proper(..) => {
                     len += 1;
@@ -123,9 +157,9 @@ impl List {
         Some(len)
     }
 
-    pub fn get(&self, heap: Arc<Heap>, i: usize) -> Option<Value> {
+    pub fn get(list: &Br<List>, i: usize) -> Option<Value> {
         let mut j = 0;
-        for cell in self.iter(heap) {
+        for cell in BrList::iter(list) {
             if i == j {
                 return Some(match cell {
                     Cell::Proper(value) => value,
@@ -136,71 +170,44 @@ impl List {
         }
         None
     }
-
-    /*
-    pub fn to_string(&self) -> String {
-        let mut elts: Vec<String> = Vec::new();
-        let mut last: Option<String> = None;
-        let mut e = self;
-        loop {
-            match e {
-                List::Cons { value, next } => {
-                    elts.push(value.to_string());
-                    match next {
-                        Value::List(list) => {
-                            e = list;
-                        }
-                        _ => {
-                            last = Some(next.to_string());
-                            break;
-                        }
-                    }
-                }
-                List::Nil => break,
-            }
-        }
-        format!(
-            "[{}{}]",
-            elts.join(", "),
-            match last {
-                None => "".to_string(),
-                Some(e) => format!("|{}", e),
-            }
-        )
-    }
-
-    */
-}
-
-impl Iter {
-    fn new(heap: Arc<Heap>, list: Arc<List>) -> Iter {
-        Iter { heap, cur: list }
-    }
 }
 
 impl Iterator for Iter {
     type Item = Cell;
 
     fn next(&mut self) -> Option<Cell> {
-        match (*self.cur).clone() {
-            List::Nil => None,
-            List::Cons { value, next, .. } => match self.heap.get_list(&next) {
-                Some(next) => {
-                    self.cur = next.clone();
-                    Some(Cell::Proper(value.clone()))
-                }
-                None => Some(Cell::Improper(value.clone(), next.clone())),
+        match self.cur.clone() {
+            None => None,
+            Some(cur) => match self.heap.get_list(&cur) {
+                None => None,
+                Some(cur) => match *cur.clone() {
+                    List::Nil => None,
+                    List::Cons {
+                        ref value,
+                        ref next,
+                        ..
+                    } => match self.heap.get_list(&next) {
+                        Some(_) => {
+                            self.cur = Some(next.clone());
+                            Some(Cell::Proper(value.clone()))
+                        }
+                        None => {
+                            self.cur = None;
+                            Some(Cell::Improper(value.clone(), next.clone()))
+                        }
+                    },
+                },
+                _ => panic!("not list"),
             },
-            _ => panic!("not list"),
         }
     }
 }
 
 impl ListGenerator {
-    pub fn new(heap: Arc<Heap>, lists: Vec<List>) -> ListGenerator {
+    pub fn new(heap: Arc<Heap>, lists: Vec<Br<List>>) -> ListGenerator {
         let mut sum = 0;
         for list in lists.iter() {
-            match list.len(heap.clone()) {
+            match BrList::len(list) {
                 None => {
                     sum = 0;
                     break;
@@ -209,7 +216,6 @@ impl ListGenerator {
             }
         }
         ListGenerator {
-            heap,
             lists,
             sum,
             i: 0,
@@ -224,12 +230,12 @@ impl ListGenerator {
         let mut i = self.i;
         let mut elts: Vec<Value> = Vec::with_capacity(self.lists.len());
         for list in self.lists.iter() {
-            match list.len(self.heap.clone()) {
+            match BrList::len(&list) {
                 None => return None,
                 Some(0) => return None,
                 Some(len) => {
                     let j = if i == 0 { 0 } else { i - (i / len) * len };
-                    match list.get(self.heap.clone(), j) {
+                    match BrList::get(&list, j) {
                         None => return None,
                         Some(elt) => {
                             elts.push(elt.clone());
