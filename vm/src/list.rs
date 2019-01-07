@@ -89,7 +89,7 @@ impl List {
 
     pub fn to_vec(&self, heap: &Heap) -> Option<Vec<Value>> {
         match self {
-            List::Nil => None,
+            List::Nil => Some(vec![heap.get_list_nil().1]),
             List::Cons { value, next, .. } => {
                 let mut vec = Vec::new();
                 vec.push(value.clone());
