@@ -60,7 +60,7 @@ impl List {
 
     pub fn from_list(heap: &Heap, values: Vec<Value>) -> Arc<List> {
         let list = List::value_from_list(heap, values);
-        heap.get_list(&list).unwrap().clone()
+        List::get_content(heap, &list).unwrap().clone()
     }
 
     pub fn value_from_list(heap: &Heap, values: Vec<Value>) -> Value {
@@ -178,7 +178,7 @@ impl Iterator for Iter {
     fn next(&mut self) -> Option<Cell> {
         match self.cur.clone() {
             None => None,
-            Some(cur) => match self.heap.get_list(&cur) {
+            Some(cur) => match List::get_content(&*self.heap, &cur) {
                 None => None,
                 Some(cur) => match *cur.clone() {
                     List::Nil => None,
@@ -186,7 +186,7 @@ impl Iterator for Iter {
                         ref value,
                         ref next,
                         ..
-                    } => match self.heap.get_list(&next) {
+                    } => match List::get_content(&*self.heap, &next) {
                         Some(_) => {
                             self.cur = Some(next.clone());
                             Some(Cell::Proper(value.clone()))

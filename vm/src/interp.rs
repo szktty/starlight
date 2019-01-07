@@ -350,9 +350,7 @@ impl Interp {
                     let args = ctx.pop();
                     let fval = ctx.pop();
                     println!("# spawn f {:?}, {:?}", fval, args);
-                    let args = interp
-                        .heap
-                        .get_list(&args)
+                    let args = List::get_content(&*interp.heap, &args)
                         .unwrap()
                         .to_vec(&interp.heap)
                         .unwrap();

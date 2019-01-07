@@ -129,23 +129,9 @@ impl Heap {
         old
     }
 
-    pub fn get_content_list(&self, id: ObjectId) -> Option<Arc<List>> {
-        self.get_content(id).and_then(|c| match c {
-            Content::List(list) => Some(list.clone()),
-            _ => None,
-        })
-    }
-
     // TODO: -> &(ObjectId, Value)
     pub fn get_list_nil(&self) -> (ObjectId, Value) {
         self.list_nil.clone()
-    }
-
-    pub fn get_list(&self, value: &Value) -> Option<Arc<List>> {
-        match value {
-            Value::List(id) => self.get_content_list(*id),
-            _ => None,
-        }
     }
 
     pub fn get_listgen(&self, id: ObjectId) -> Option<Arc<RefCell<ListGenerator>>> {
