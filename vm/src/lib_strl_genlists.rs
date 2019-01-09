@@ -21,7 +21,7 @@ pub fn new() -> Module {
     m
 }
 
-fn nif_create(interp: Arc<Interp>, proc: &Arc<Process>, args: &ArgList) -> Result<Value> {
+fn nif_create(interp: &Arc<Interp>, proc: &Arc<Process>, args: &ArgList) -> Result<Value> {
     let tuple = try!(args.get_tuple(0));
     let mut lists: Vec<Br<List>> = Vec::new();
     for e in tuple.iter() {
@@ -44,7 +44,7 @@ fn nif_create(interp: Arc<Interp>, proc: &Arc<Process>, args: &ArgList) -> Resul
     Ok(Value::ListGenerator(id))
 }
 
-fn nif_next(interp: Arc<Interp>, proc: &Arc<Process>, args: &ArgList) -> Result<Value> {
+fn nif_next(interp: &Arc<Interp>, proc: &Arc<Process>, args: &ArgList) -> Result<Value> {
     let mut gen = try!(args.get_listgen(&proc.heap, 0));
     let mut genref = (*gen).borrow_mut();
     match genref.next() {
@@ -53,7 +53,7 @@ fn nif_next(interp: Arc<Interp>, proc: &Arc<Process>, args: &ArgList) -> Result<
     }
 }
 
-fn nif_add(interp: Arc<Interp>, proc: &Arc<Process>, args: &ArgList) -> Result<Value> {
+fn nif_add(interp: &Arc<Interp>, proc: &Arc<Process>, args: &ArgList) -> Result<Value> {
     let mut gen = try!(args.get_listgen(&proc.heap, 0));
     let value = args.get(1);
     let mut genref = (*gen).borrow_mut();
@@ -61,7 +61,7 @@ fn nif_add(interp: Arc<Interp>, proc: &Arc<Process>, args: &ArgList) -> Result<V
     Ok(Value::Nil)
 }
 
-fn nif_collect(interp: Arc<Interp>, proc: &Arc<Process>, args: &ArgList) -> Result<Value> {
+fn nif_collect(interp: &Arc<Interp>, proc: &Arc<Process>, args: &ArgList) -> Result<Value> {
     let mut gen = try!(args.get_listgen(&proc.heap, 0));
     let mut genref = (*gen).borrow_mut();
     Ok(List::value_from_list(&proc.heap, genref.collect()))

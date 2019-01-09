@@ -17,7 +17,7 @@ pub fn new() -> Module {
     m
 }
 
-fn nif_create_module(interp: Arc<Interp>, proc: &Arc<Process>, args: &ArgList) -> Result<Value> {
+fn nif_create_module(interp: &Arc<Interp>, proc: &Arc<Process>, args: &ArgList) -> Result<Value> {
     let attrs = try!(args.get_tuple(0));
     let funs = args.get(1);
     let mut m = Module::new();

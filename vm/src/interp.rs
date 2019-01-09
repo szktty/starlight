@@ -221,7 +221,7 @@ impl Interp {
     }
 
     pub fn eval(
-        interp: Arc<Interp>,
+        interp: &Arc<Interp>,
         proc: &Arc<Process>,
         caller: Option<&Context>,
         code: Arc<CompiledCode>,
@@ -343,7 +343,7 @@ impl Interp {
                 Opcode::Apply(nargs) => {
                     let args = ctx.popn(*nargs as usize);
                     let fval = ctx.pop();
-                    let ret = try!(Interp::eval_fun(interp.clone(), proc, &ctx, fval, args));
+                    let ret = try!(Interp::eval_fun(interp, proc, &ctx, fval, args));
                     ctx.load(ret)
                 }
                 Opcode::Spawn => {
@@ -359,8 +359,7 @@ impl Interp {
                     let ctx2 = ctx.clone();
                     let proc2 = interp.procs.create();
                     interp.pool.group.async(&interp.pool.user, move || {
-                        let _ =
-                            Arc::new(Interp::eval_fun(interp2.clone(), &proc2, &ctx2, fval, args));
+                        let _ = Arc::new(Interp::eval_fun(&interp2, &proc2, &ctx2, fval, args));
                         println!("# queue exec");
                         interp2.procs.finish(proc2.id);
                     });
@@ -445,14 +444,14 @@ impl Interp {
     }
 
     fn eval_fun(
-        interp: Arc<Interp>,
+        interp: &Arc<Interp>,
         proc: &Arc<Process>,
         ctx: &Context,
         fval: Value,
         args: Vec<Value>,
     ) -> Result<Value> {
         match fval {
-            Value::CompiledCode(code) => Interp::eval(interp.clone(), proc, Some(ctx), code, args),
+            Value::CompiledCode(code) => Interp::eval(interp, proc, Some(ctx), code, args),
             Value::Nif(nif) => {
                 let arglist = try!(ArgList::new(proc.heap.clone(), args.len(), args));
                 match ((*nif).fun)(interp, proc, &arglist) {

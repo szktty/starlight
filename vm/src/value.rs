@@ -65,7 +65,7 @@ impl fmt::Debug for CompiledCode {
     }
 }
 
-pub type NifFun = fn(interp: Arc<Interp>, proc: &Arc<Process>, args: &ArgList) -> Result<Value>;
+pub type NifFun = fn(interp: &Arc<Interp>, proc: &Arc<Process>, args: &ArgList) -> Result<Value>;
 
 #[derive(Clone)]
 pub struct Nif {

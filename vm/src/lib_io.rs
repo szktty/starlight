@@ -13,7 +13,7 @@ pub fn new() -> Module {
     m
 }
 
-fn nif_fwrite(_interp: Arc<Interp>, proc: &Arc<Process>, args: &ArgList) -> Result<Value> {
+fn nif_fwrite(_interp: &Arc<Interp>, proc: &Arc<Process>, args: &ArgList) -> Result<Value> {
     let fmt_val = args.get(0);
     match fmt_val.get_string() {
         None => {
