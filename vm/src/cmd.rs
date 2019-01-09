@@ -33,9 +33,10 @@ impl Command {
             Ok(bc) => {
                 debug!("execute module initialization function");
                 let interp = self.interp.clone();
-                let init = Arc::new(bc.main.to_value_code(&interp.heap).clone());
+                let proc = interp.procs.create();
+                let init = Arc::new(bc.main.to_value_code(&proc.heap).clone());
                 {
-                    match Interp::eval(interp.clone(), None, init.clone(), Vec::new()) {
+                    match Interp::eval(interp.clone(), &proc, None, init.clone(), Vec::new()) {
                         Ok(_) => {}
                         Err(msg) => panic!("# error: {:?}", msg),
                     };
@@ -51,7 +52,13 @@ impl Command {
                 {
                     match m.fields.get("main") {
                         Some(Value::CompiledCode(code)) => {
-                            match Interp::eval(interp.clone(), None, code.clone(), Vec::new()) {
+                            match Interp::eval(
+                                interp.clone(),
+                                &proc,
+                                None,
+                                code.clone(),
+                                Vec::new(),
+                            ) {
                                 Ok(value) => debug!("# main => {:?}", value),
                                 Err(e) => println!("# error: {:?}", e),
                             }

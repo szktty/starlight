@@ -5,6 +5,7 @@ use interp::Interp;
 use list::List;
 use module::Module;
 use opcode::Opcode;
+use process::Process;
 use result::Result;
 use std::cell::RefCell;
 use std::fmt;
@@ -64,7 +65,7 @@ impl fmt::Debug for CompiledCode {
     }
 }
 
-pub type NifFun = fn(interp: Arc<Interp>, args: &ArgList) -> Result<Value>;
+pub type NifFun = fn(interp: Arc<Interp>, proc: &Arc<Process>, args: &ArgList) -> Result<Value>;
 
 #[derive(Clone)]
 pub struct Nif {

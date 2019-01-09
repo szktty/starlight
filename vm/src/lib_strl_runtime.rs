@@ -3,6 +3,7 @@ use error::{Error, ErrorKind};
 use heap::Content;
 use interp::Interp;
 use module::Module;
+use process::Process;
 use result::Result;
 use std::sync::Arc;
 use value::Value;
@@ -16,7 +17,7 @@ pub fn new() -> Module {
     m
 }
 
-fn nif_create_module(interp: Arc<Interp>, args: &ArgList) -> Result<Value> {
+fn nif_create_module(interp: Arc<Interp>, proc: &Arc<Process>, args: &ArgList) -> Result<Value> {
     let attrs = try!(args.get_tuple(0));
     let funs = args.get(1);
     let mut m = Module::new();
@@ -47,6 +48,6 @@ fn nif_create_module(interp: Arc<Interp>, args: &ArgList) -> Result<Value> {
         };
     }
     Ok(Value::Module(
-        interp.heap.create(|_| Content::Module(Arc::new(m))),
+        proc.heap.create(|_| Content::Module(Arc::new(m))),
     ))
 }
