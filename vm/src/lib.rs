@@ -28,5 +28,5 @@ pub mod module;
 pub mod opcode;
 pub mod process;
 pub mod result;
-pub mod thread_pool;
+pub mod sync;
 pub mod value;

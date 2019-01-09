@@ -1,7 +1,7 @@
 use heap::Heap;
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
-use thread_pool::ThreadPool;
+use sync::ThreadPool;
 
 #[derive(Debug, Clone)]
 pub struct Process {

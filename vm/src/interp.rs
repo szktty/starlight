@@ -10,7 +10,7 @@ use result::Result;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
-use thread_pool::ThreadPool;
+use sync::ThreadPool;
 use value::{CompiledCode, Value};
 
 #[derive(Debug, Clone)]

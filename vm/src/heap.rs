@@ -5,7 +5,7 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fmt;
 use std::sync::Arc;
-use thread_pool::ThreadPool;
+use sync::ThreadPool;
 use value::Value;
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
