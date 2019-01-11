@@ -10,7 +10,7 @@ use result::Result;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
-use sync::ThreadPool;
+use sync::{RecLock, ThreadPool};
 use value::{CompiledCode, Value};
 
 #[derive(Debug, Clone)]
@@ -33,7 +33,7 @@ pub struct Interp {
     pub pool: Arc<ThreadPool>,
     pub heap: Arc<Heap>,
     pub procs: ProcessGroup,
-    pub mgroup_id: ObjectId,
+    pub mgroup_id: RecLock<ObjectId>,
 }
 
 impl Context {
@@ -176,7 +176,7 @@ impl Interp {
             pool: pool.clone(),
             heap,
             procs: ProcessGroup::new(pool.clone()),
-            mgroup_id: mgroup_id,
+            mgroup_id: RecLock::new(mgroup_id),
         }
     }
 
@@ -184,19 +184,24 @@ impl Interp {
     where
         F: FnOnce(&ModuleGroup) -> U,
     {
-        match self.heap.get_content(self.mgroup_id).unwrap() {
+        self.mgroup_id.lock();
+        let group = match self.heap.get_content(*self.mgroup_id.get()).unwrap() {
             Content::ModuleGroup(group) => f(&*group),
             _ => panic!("not found module group"),
-        }
+        };
+        self.mgroup_id.unlock();
+        group
     }
 
     pub fn get_module(&self, name: &str) -> Option<(ObjectId, Arc<Module>)> {
-        self.get_module_group(|group| match group.get(name) {
-            Some(id) => match self.heap.get_content(id) {
-                Some(Content::Module(m)) => Some((id, m.clone())),
-                _ => None,
-            },
-            None => None,
+        self.get_module_group(|group| {
+            match group.get(name) {
+                Some(id) => match self.heap.get_content(id) {
+                    Some(Content::Module(m)) => Some((id, m.clone())),
+                    _ => None,
+                },
+                None => None,
+            }
         })
     }
 
@@ -235,7 +240,7 @@ impl Interp {
                 panic!("# code must have return op")
             }
             let op = &ops[ctx.pc];
-            //debug!("eval {} {:?}", ctx.pc + 1, &ops[ctx.pc]);
+            debug!("eval {} {:?}", ctx.pc + 1, &ops[ctx.pc]);
             match op {
                 Opcode::Nop => (),
                 Opcode::LoadConst(i) => ctx.load_const(*i as usize),

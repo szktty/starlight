@@ -1,7 +1,7 @@
 use heap::Heap;
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
-use sync::ThreadPool;
+use sync::{RecLock, ThreadPool};
 
 #[derive(Debug, Clone)]
 pub struct Process {
@@ -11,7 +11,7 @@ pub struct Process {
 
 pub struct ProcessGroup {
     pool: Arc<ThreadPool>,
-    procs: RwLock<HashMap<usize, Arc<Process>>>,
+    procs: RecLock<HashMap<usize, Arc<Process>>>,
 }
 
 impl Process {
@@ -28,28 +28,24 @@ impl ProcessGroup {
     pub fn new(pool: Arc<ThreadPool>) -> ProcessGroup {
         ProcessGroup {
             pool,
-            procs: RwLock::new(HashMap::new()),
+            procs: RecLock::new(HashMap::new()),
         }
     }
 
     pub fn create(&self) -> Arc<Process> {
-        match self.procs.write() {
-            Result::Ok(mut procs) => {
-                let id = procs.len();
-                let proc = Arc::new(Process::new(id, self.pool.clone()));
-                procs.insert(id, proc.clone());
-                proc
-            }
-            _ => panic!("# ProcessGroup::create: lock failure"),
-        }
+        self.procs.lock();
+        let mut procs = self.procs.get_mut();
+        let id = procs.len();
+        let proc = Arc::new(Process::new(id, self.pool.clone()));
+        procs.insert(id, proc.clone());
+        self.procs.unlock();
+        proc
     }
 
     pub fn finish(&self, id: usize) {
-        match self.procs.write() {
-            Result::Ok(mut procs) => {
-                procs.remove(&id);
-            }
-            _ => (),
-        };
+        self.procs.lock();
+        let mut procs = self.procs.get_mut();
+        procs.remove(&id);
+        self.procs.unlock();
     }
 }

@@ -5,7 +5,7 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fmt;
 use std::sync::Arc;
-use sync::ThreadPool;
+use sync::{RecLock, ThreadPool};
 use value::Value;
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
@@ -15,12 +15,15 @@ pub struct ObjectId {
 
 pub struct Heap {
     pool: Arc<ThreadPool>,
-    guards: RefCell<Vec<SuspendGuard>>,
-    id: RefCell<usize>,
-    store: RefCell<HashMap<ObjectId, Object>>,
+    store: RecLock<ObjectStore>,
 
     // shared variables
     list_nil: (ObjectId, Value),
+}
+
+pub struct ObjectStore {
+    id: usize,
+    store: HashMap<ObjectId, Object>,
 }
 
 #[derive(Debug, Clone)]
@@ -64,30 +67,13 @@ impl Heap {
 
         Heap {
             pool,
-            guards: RefCell::new(Vec::new()),
-            id: RefCell::new(1),
-            store: RefCell::new(store),
+            store: RecLock::new(ObjectStore { id: 1, store }),
             list_nil: (nil_id, Value::List(nil_id)),
         }
     }
 
-    pub fn lock(&self) {
-        let mut guards = self.guards.borrow_mut();
-        if !guards.is_empty() {
-            panic!("already locked")
-        }
-        guards.push(self.pool.user.suspend())
-    }
-
-    pub fn unlock(&self) {
-        let guards = self.guards.replace(Vec::new());
-        for mut guard in guards {
-            guard.resume();
-        }
-    }
-
     pub fn get(&self, id: ObjectId) -> Option<Object> {
-        match self.store.borrow().get(&id) {
+        match self.store.get().store.get(&id) {
             None => None,
             Some(obj) => Some(obj.clone()),
         }
@@ -105,27 +91,25 @@ impl Heap {
     where
         F: FnOnce(ObjectId) -> Content,
     {
-        self.lock();
+        self.store.lock();
 
-        let mut store = self.store.borrow_mut();
-        let mut id = self.id.borrow_mut();
-        let oid = ObjectId::new(*id);
+        let mut store = self.store.get_mut();
+        let oid = ObjectId::new(store.id);
         let obj = Object {
             id: oid,
             content: f(oid),
         };
-        store.insert(oid, obj.clone());
-        *id += 1;
-
-        self.unlock();
+        store.store.insert(oid, obj.clone());
+        store.id += 1;
+        self.store.unlock();
         oid
     }
 
     pub fn update<F>(&self, obj: Object) -> Option<Object> {
-        self.lock();
-        let mut store = self.store.borrow_mut();
-        let old = store.insert(obj.id, obj);
-        self.unlock();
+        self.store.lock();
+        let mut store = self.store.get_mut();
+        let old = store.store.insert(obj.id, obj);
+        self.store.unlock();
         old
     }
 
@@ -144,7 +128,7 @@ impl Heap {
 
 impl fmt::Debug for Heap {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Heap({})", *self.id.borrow())
+        write!(f, "Heap({})", self.store.get().id)
     }
 }
 

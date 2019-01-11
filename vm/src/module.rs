@@ -75,13 +75,7 @@ impl ModuleGroup {
     }
 
     pub fn get(&self, name: &str) -> Option<ObjectId> {
-        loop {
-            match self.mods.try_borrow() {
-                Ok(mods) => return mods.get(name).cloned(),
-                Err(_) => (),
-            }
-        }
-        //self.mods.borrow().get(name).cloned()
+        self.mods.borrow().get(name).cloned()
     }
 
     pub fn add(&self, name: &str, m: ObjectId) -> Option<ObjectId> {
