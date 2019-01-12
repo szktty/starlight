@@ -363,7 +363,7 @@ impl Interp {
                     let interp2 = interp.clone();
                     let ctx2 = ctx.clone();
                     let proc2 = interp.procs.create();
-                    interp.pool.group.async(&interp.pool.user, move || {
+                    interp.pool.process_async(move || {
                         let _ = Arc::new(Interp::eval_fun(&interp2, &proc2, &ctx2, fval, args));
                         println!("# queue exec");
                         interp2.procs.finish(proc2.id);

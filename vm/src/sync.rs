@@ -1,14 +1,15 @@
 use dispatch::ffi;
 use dispatch::{Group, Queue, QueueAttribute, QueuePriority};
+use rand::random;
 use std::cell::{RefCell, UnsafeCell};
 use std::mem;
 use std::sync::Arc;
 
 pub struct ThreadPool {
     pub group: Group,
-    pub system: Queue, // serial, high priority
-    pub user: Queue,   // concurrent, default priority
-    pub bg: Queue,     // serial, background priority
+    pub system: Queue,       // serial, high priority
+    pub process: Vec<Queue>, // process queues, default priority
+    pub bg: Queue,           // serial, background priority
 }
 
 // recursive lock
@@ -26,22 +27,43 @@ struct RecLockInner {
 
 impl ThreadPool {
     pub fn new() -> ThreadPool {
+        let group = Group::create();
         let pr_high = Queue::global(QueuePriority::High);
         let pr_default = Queue::global(QueuePriority::Default);
         let pr_bg = Queue::global(QueuePriority::Background);
         let system = Queue::with_target_queue("system", QueueAttribute::Serial, &pr_high);
-        let user = Queue::with_target_queue("user", QueueAttribute::Concurrent, &pr_default);
         let bg = Queue::with_target_queue("background", QueueAttribute::Serial, &pr_bg);
+        let mut process = Vec::new();
+        for n in 0..12 {
+            let queue = Queue::with_target_queue(
+                &format!("process{:?}", n),
+                QueueAttribute::Concurrent,
+                &pr_default,
+            );
+            process.push(queue)
+        }
         ThreadPool {
-            group: Group::create(),
+            group,
             system,
-            user,
+            process,
             bg,
         }
     }
 
     pub fn wait_all(&self) {
         self.group.wait()
+    }
+
+    pub fn process_async<F>(&self, work: F)
+    where
+        F: 'static + Send + FnOnce(),
+    {
+        let n = match random::<u8>() {
+            0 => 0,
+            n => n % self.process.len() as u8,
+        };
+        let queue = &self.process[n as usize];
+        self.group.async(queue, work)
     }
 }
 
