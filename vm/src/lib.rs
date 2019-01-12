@@ -8,6 +8,7 @@ extern crate serde_json;
 extern crate clap;
 
 extern crate dispatch;
+extern crate rand;
 
 #[macro_use]
 pub mod macros;
