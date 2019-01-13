@@ -20,6 +20,7 @@ This project is experimental.
   - menhir
 - VM
   - Rust 1.31+
+  - libdispatch
 
 ## Building Starlight
 
