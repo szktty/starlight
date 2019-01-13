@@ -8,6 +8,7 @@ extern crate serde_json;
 extern crate clap;
 
 extern crate dispatch;
+extern crate rand;
 
 #[macro_use]
 pub mod macros;
@@ -28,5 +29,5 @@ pub mod module;
 pub mod opcode;
 pub mod process;
 pub mod result;
-pub mod thread_pool;
+pub mod sync;
 pub mod value;
