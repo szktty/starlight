@@ -3,6 +3,7 @@ use std::cell::{Ref, RefCell, RefMut};
 use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::Arc;
+use sync::RecLock;
 use value::Value;
 
 #[derive(Debug, Clone)]
@@ -12,9 +13,9 @@ pub struct Module {
     pub fields: HashMap<String, Value>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct ModuleGroup {
-    pub mods: Arc<RefCell<HashMap<String, ObjectId>>>,
+    pub mods: RecLock<Arc<RefCell<HashMap<String, ObjectId>>>>,
 }
 
 #[derive(Debug, Clone)]
@@ -70,15 +71,30 @@ impl ModuleRef {
 impl ModuleGroup {
     pub fn new() -> ModuleGroup {
         ModuleGroup {
-            mods: Arc::new(RefCell::new(HashMap::new())),
+            mods: RecLock::new(Arc::new(RefCell::new(HashMap::new()))),
         }
     }
 
     pub fn get(&self, name: &str) -> Option<ObjectId> {
-        self.mods.borrow().get(name).cloned()
+        match self.mods.lock() {
+            Ok(_) => self.mods.get().borrow().get(name).cloned(),
+            _ => unreachable!(),
+        }
     }
 
     pub fn add(&self, name: &str, m: ObjectId) -> Option<ObjectId> {
-        self.mods.borrow_mut().insert(name.to_string(), m)
+        match self.mods.lock() {
+            Ok(_) => self.mods.get_mut().borrow_mut().insert(name.to_string(), m),
+            _ => unreachable!(),
+        }
+    }
+}
+
+impl Clone for ModuleGroup {
+    #[inline]
+    fn clone(&self) -> ModuleGroup {
+        ModuleGroup {
+            mods: RecLock::new(self.mods.get().clone()),
+        }
     }
 }

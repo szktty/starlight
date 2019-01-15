@@ -184,24 +184,22 @@ impl Interp {
     where
         F: FnOnce(&ModuleGroup) -> U,
     {
-        self.mgroup_id.lock();
-        let group = match self.heap.get_content(*self.mgroup_id.get()).unwrap() {
-            Content::ModuleGroup(group) => f(&*group),
-            _ => panic!("not found module group"),
-        };
-        self.mgroup_id.unlock();
-        group
+        match self.mgroup_id.lock() {
+            Ok(_) => match self.heap.get_content(*self.mgroup_id.get()).unwrap() {
+                Content::ModuleGroup(group) => f(&*group),
+                _ => panic!("not found module group"),
+            },
+            _ => unreachable!(),
+        }
     }
 
     pub fn get_module(&self, name: &str) -> Option<(ObjectId, Arc<Module>)> {
-        self.get_module_group(|group| {
-            match group.get(name) {
-                Some(id) => match self.heap.get_content(id) {
-                    Some(Content::Module(m)) => Some((id, m.clone())),
-                    _ => None,
-                },
-                None => None,
-            }
+        self.get_module_group(|group| match group.get(name) {
+            Some(id) => match self.heap.get_content(id) {
+                Some(Content::Module(m)) => Some((id, m.clone())),
+                _ => None,
+            },
+            None => None,
         })
     }
 

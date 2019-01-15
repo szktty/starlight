@@ -33,13 +33,20 @@ impl ProcessGroup {
     }
 
     pub fn create(&self) -> Arc<Process> {
-        self.procs.lock();
-        let mut procs = self.procs.get_mut();
-        let id = procs.len();
-        let proc = Arc::new(Process::new(id, self.pool.clone()));
-        procs.insert(id, proc.clone());
-        self.procs.unlock();
-        proc
+        match self.procs.lock() {
+            Ok(_) => {
+                let mut procs = self.procs.get_mut();
+                let id = procs.len();
+                //println!("# ProcessGroup: id {}", id);
+                if id > 1000000 {
+                    //panic!("ok {}", id)
+                }
+                let proc = Arc::new(Process::new(id, self.pool.clone()));
+                procs.insert(id, proc.clone());
+                proc
+            }
+            _ => unreachable!(),
+        }
     }
 
     pub fn finish(&self, id: usize) {

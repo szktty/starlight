@@ -91,26 +91,31 @@ impl Heap {
     where
         F: FnOnce(ObjectId) -> Content,
     {
-        self.store.lock();
-
-        let mut store = self.store.get_mut();
-        let oid = ObjectId::new(store.id);
-        let obj = Object {
-            id: oid,
-            content: f(oid),
-        };
-        store.store.insert(oid, obj.clone());
-        store.id += 1;
-        self.store.unlock();
-        oid
+        match self.store.lock() {
+            Ok(_) => {
+                let mut store = self.store.get_mut();
+                let oid = ObjectId::new(store.id);
+                let obj = Object {
+                    id: oid,
+                    content: f(oid),
+                };
+                store.store.insert(oid, obj.clone());
+                store.id += 1;
+                oid
+            }
+            _ => unreachable!(),
+        }
     }
 
     pub fn update<F>(&self, obj: Object) -> Option<Object> {
-        self.store.lock();
-        let mut store = self.store.get_mut();
-        let old = store.store.insert(obj.id, obj);
-        self.store.unlock();
-        old
+        match self.store.lock() {
+            Ok(_) => {
+                let mut store = self.store.get_mut();
+                let old = store.store.insert(obj.id, obj);
+                old
+            }
+            _ => unreachable!(),
+        }
     }
 
     // TODO: -> &(ObjectId, Value)
