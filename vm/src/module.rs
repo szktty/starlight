@@ -18,11 +18,6 @@ pub struct ModuleGroup {
     pub mods: RecLock<Arc<RefCell<HashMap<String, ObjectId>>>>,
 }
 
-#[derive(Debug, Clone)]
-pub struct ModuleRef {
-    pub rc: Rc<RefCell<Module>>,
-}
-
 impl Module {
     pub fn new() -> Module {
         Module {
@@ -41,30 +36,6 @@ impl Module {
     }
     pub fn set_name(&self, name: &str) {
         *self.name.borrow_mut() = Some(name.to_string());
-    }
-}
-
-impl ModuleRef {
-    pub fn new(m: Module) -> ModuleRef {
-        ModuleRef {
-            rc: Rc::new(RefCell::new(m)),
-        }
-    }
-
-    pub fn get_refcell(&self) -> &RefCell<Module> {
-        &(*self.rc)
-    }
-
-    pub fn get_prop(&self, name: &str) -> Option<Value> {
-        (*self.rc).borrow().fields.get(name).cloned()
-    }
-
-    pub fn borrow(&self) -> Ref<Module> {
-        (*self.rc).borrow()
-    }
-
-    pub fn borrow_mut(&self) -> RefMut<Module> {
-        (*self.rc).borrow_mut()
     }
 }
 
