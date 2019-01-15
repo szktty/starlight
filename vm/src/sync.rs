@@ -1,9 +1,10 @@
 use dispatch::ffi;
 use dispatch::{Group, Queue, QueueAttribute, QueuePriority};
 use rand::random;
-use std::cell::{RefCell, UnsafeCell};
+use std::cell::UnsafeCell;
+use std::fmt;
 use std::mem;
-use std::sync::Arc;
+use std::sync::{Arc, LockResult};
 
 pub struct ThreadPool {
     pub group: Group,
@@ -13,16 +14,20 @@ pub struct ThreadPool {
 }
 
 // recursive lock
-pub struct RecLock<T> {
-    queue: Queue,
+#[derive(Debug)]
+pub struct RecLock<T: ?Sized> {
     inner: Arc<RecLockInner>,
     data: UnsafeCell<T>,
 }
 
 struct RecLockInner {
-    is_alive: bool,
-    count: RefCell<usize>,
+    queue: Queue,
     semaphore: ffi::dispatch_semaphore_t,
+}
+
+#[derive(Debug)]
+pub struct RecLockGuard<'a, T: ?Sized + 'a> {
+    lock: &'a RecLock<T>,
 }
 
 impl ThreadPool {
@@ -69,15 +74,8 @@ impl ThreadPool {
 
 impl<T> RecLock<T> {
     pub fn new(data: T) -> RecLock<T> {
-        let target = Queue::global(QueuePriority::Default);
-        let semaphore = unsafe { ffi::dispatch_semaphore_create(1) };
         RecLock {
-            queue: Queue::with_target_queue("RecLock", QueueAttribute::Serial, &target),
-            inner: Arc::new(RecLockInner {
-                is_alive: true,
-                count: RefCell::new(0),
-                semaphore,
-            }),
+            inner: Arc::new(RecLockInner::new()),
             data: UnsafeCell::new(data),
         }
     }
@@ -90,37 +88,9 @@ impl<T> RecLock<T> {
         unsafe { &mut *self.data.get() }
     }
 
-    pub fn try_lock(&self) -> bool {
-        let mut flag = false;
-        let inner = self.inner.clone();
-        self.queue.sync(|| {
-            if inner.count() == 0 {
-                inner.increment();
-                flag = true;
-            }
-        });
-        flag
-    }
-
-    pub fn lock(&self) {
-        println!("# RecLock::lock");
-        if self.inner.is_alive {
-            let inner = self.inner.clone();
-            self.queue.sync(|| {
-                inner.increment();
-            });
-            self.inner.wait();
-        }
-    }
-
-    pub fn unlock(&self) {
-        if self.inner.is_alive {
-            let inner = self.inner.clone();
-            self.queue.sync(|| {
-                inner.decrement();
-            });
-            inner.signal();
-        }
+    pub fn lock(&self) -> LockResult<RecLockGuard<T>> {
+        self.inner.lock();
+        Ok(RecLockGuard::new(self))
     }
 }
 
@@ -129,18 +99,11 @@ unsafe impl<T> Sync for RecLock<T> {}
 
 impl RecLockInner {
     #[inline]
-    pub fn count(&self) -> usize {
-        *self.count.borrow()
-    }
-
-    #[inline]
-    pub fn increment(&self) {
-        *self.count.borrow_mut() += 1
-    }
-
-    #[inline]
-    pub fn decrement(&self) {
-        *self.count.borrow_mut() -= 1
+    pub fn new() -> RecLockInner {
+        let target = Queue::global(QueuePriority::Default);
+        let queue = Queue::with_target_queue("RecLock", QueueAttribute::Serial, &target);
+        let semaphore = unsafe { ffi::dispatch_semaphore_create(1) };
+        RecLockInner { queue, semaphore }
     }
 
     #[inline]
@@ -157,11 +120,14 @@ impl RecLockInner {
     pub fn signal(&self) {
         unsafe { ffi::dispatch_semaphore_signal(self.dispatch_object()) };
     }
+
+    pub fn lock(&self) {
+        self.wait();
+    }
 }
 
 impl Drop for RecLockInner {
     fn drop(&mut self) {
-        self.is_alive = false;
         unsafe {
             let obj =
                 mem::transmute::<ffi::dispatch_semaphore_t, ffi::dispatch_object_t>(self.semaphore);
@@ -170,5 +136,29 @@ impl Drop for RecLockInner {
     }
 }
 
+impl fmt::Debug for RecLockInner {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "RecLockInner")
+    }
+}
+
 unsafe impl Send for RecLockInner {}
 unsafe impl Sync for RecLockInner {}
+
+impl<'a, T: ?Sized> RecLockGuard<'a, T> {
+    pub fn new(lock: &'a RecLock<T>) -> RecLockGuard<'a, T> {
+        RecLockGuard { lock }
+    }
+}
+
+impl<'a, T: ?Sized> Drop for RecLockGuard<'a, T> {
+    fn drop(&mut self) {
+        let inner = self.lock.inner.clone();
+        inner.queue.sync(|| {
+            inner.signal();
+        });
+    }
+}
+
+impl<'a, T: ?Sized> !Send for RecLockGuard<'a, T> {}
+unsafe impl<'a, T: ?Sized + Sync> Sync for RecLockGuard<'a, T> {}
