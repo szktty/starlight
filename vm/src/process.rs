@@ -10,23 +10,25 @@ pub struct Process {
 }
 
 pub struct ProcessGroup {
+    global: Arc<Heap>,
     pool: Arc<ThreadPool>,
     procs: RecLock<HashMap<usize, Arc<Process>>>,
 }
 
 impl Process {
     #[inline]
-    fn new(id: usize, pool: Arc<ThreadPool>) -> Process {
+    fn new(global: Option<Arc<Heap>>, id: usize, pool: Arc<ThreadPool>) -> Process {
         Process {
             id,
-            heap: Arc::new(Heap::new(pool.clone())),
+            heap: Arc::new(Heap::new(global, pool.clone())),
         }
     }
 }
 
 impl ProcessGroup {
-    pub fn new(pool: Arc<ThreadPool>) -> ProcessGroup {
+    pub fn new(global: Arc<Heap>, pool: Arc<ThreadPool>) -> ProcessGroup {
         ProcessGroup {
+            global,
             pool,
             procs: RecLock::new(HashMap::new()),
         }
@@ -41,7 +43,11 @@ impl ProcessGroup {
                 if id > 1000000 {
                     //panic!("ok {}", id)
                 }
-                let proc = Arc::new(Process::new(id, self.pool.clone()));
+                let proc = Arc::new(Process::new(
+                    Some(self.global.clone()),
+                    id,
+                    self.pool.clone(),
+                ));
                 procs.insert(id, proc.clone());
                 proc
             }
@@ -53,6 +59,7 @@ impl ProcessGroup {
         self.procs.lock();
         let mut procs = self.procs.get_mut();
         procs.remove(&id);
+        println!("# ProcessGroup: did finish lock");
         self.procs.unlock();
     }
 }

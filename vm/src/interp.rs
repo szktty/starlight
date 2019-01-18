@@ -3,12 +3,14 @@ use dispatch::{Queue, QueuePriority};
 use heap::{Content, Heap, Object, ObjectId};
 use interp_init;
 use list::{BrList, List, ListGenerator};
-use module::{Module, ModuleGroup};
+use module::{Module, ModuleDesc, ModuleGroup};
 use opcode::{BlockTag, Opcode};
 use process::{Process, ProcessGroup};
 use result::Result;
 use std::cell::RefCell;
+use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
+use std::hash::{Hash, Hasher};
 use std::sync::{Arc, Mutex};
 use sync::{RecLock, ThreadPool};
 use value::{CompiledCode, Value};
@@ -33,7 +35,8 @@ pub struct Interp {
     pub pool: Arc<ThreadPool>,
     pub heap: Arc<Heap>,
     pub procs: ProcessGroup,
-    pub mgroup_id: RecLock<ObjectId>,
+    pub mods: RecLock<ModuleGroup>,
+    pub atoms: RecLock<RefCell<HashMap<usize, Arc<String>>>>,
 }
 
 impl Context {
@@ -169,38 +172,21 @@ impl Context {
 impl Interp {
     pub fn new() -> Interp {
         let pool = Arc::new(ThreadPool::new());
-        let heap = Arc::new(Heap::new(pool.clone()));
-        let mgroup = Content::ModuleGroup(Arc::new(ModuleGroup::new()));
-        let mgroup_id = heap.create(|_| mgroup);
+        let heap = Arc::new(Heap::new(None, pool.clone()));
         Interp {
             pool: pool.clone(),
-            heap,
-            procs: ProcessGroup::new(pool.clone()),
-            mgroup_id: RecLock::new(mgroup_id),
+            heap: heap.clone(),
+            procs: ProcessGroup::new(heap, pool.clone()),
+            mods: RecLock::new(ModuleGroup::new()),
+            atoms: RecLock::new(RefCell::new(HashMap::new())),
         }
     }
 
-    pub fn get_module_group<F, U>(&self, f: F) -> U
-    where
-        F: FnOnce(&ModuleGroup) -> U,
-    {
-        match self.mgroup_id.lock() {
-            Ok(_) => match self.heap.get_content(*self.mgroup_id.get()).unwrap() {
-                Content::ModuleGroup(group) => f(&*group),
-                _ => panic!("not found module group"),
-            },
-            _ => unreachable!(),
+    pub fn get_module(&self, name: &str) -> Option<Arc<Module>> {
+        match self.mods.lock() {
+            Ok(guard) => (*guard).get(name),
+            _ => panic!("cannot lock"),
         }
-    }
-
-    pub fn get_module(&self, name: &str) -> Option<(ObjectId, Arc<Module>)> {
-        self.get_module_group(|group| match group.get(name) {
-            Some(id) => match self.heap.get_content(id) {
-                Some(Content::Module(m)) => Some((id, m.clone())),
-                _ => None,
-            },
-            None => None,
-        })
     }
 
     pub fn get_module_for_id(&self, id: ObjectId) -> Option<Arc<Module>> {
@@ -210,16 +196,50 @@ impl Interp {
         }
     }
 
-    pub fn add_module(&self, m: Arc<Module>) {
-        self.get_module_group(|group| {
-            let name = m.get_name().unwrap();
-            group.add(&name, self.heap.create(|_| Content::Module(m)));
-        });
+    pub fn add_module(&self, name: &str, m: Arc<Module>) {
+        match self.mods.lock() {
+            Ok(guard) => {
+                println!("# add module id {:?}", m);
+                (*guard).add(name, m);
+            }
+            _ => panic!("cannot lock"),
+        }
     }
 
-    pub fn install_modules(&self, ms: Vec<Module>) {
-        for m in ms.into_iter() {
-            self.add_module(Arc::new(m))
+    pub fn install_modules(&self, descs: Vec<ModuleDesc>) {
+        for desc in descs.into_iter() {
+            self.heap.create(|id| {
+                let name = desc.name.clone();
+                let m = Arc::new(Module::new(id, desc));
+                self.add_module(&name, m.clone());
+                Content::Module(m)
+            });
+        }
+    }
+
+    pub fn get_atom(&self, id: usize) -> Option<Arc<String>> {
+        match self.atoms.lock() {
+            Ok(guard) => guard.borrow().get(&id).cloned(),
+            _ => panic!("cannot lock"),
+        }
+    }
+
+    pub fn add_atom(&self, name: &str) -> usize {
+        match self.atoms.lock() {
+            Ok(guard) => {
+                let mut hasher = DefaultHasher::new();
+                name.hash(&mut hasher);
+                let id = hasher.finish() as usize;
+                let mut atoms = guard.borrow_mut();
+                match atoms.get(&id) {
+                    Some(_) => id,
+                    None => {
+                        atoms.insert(id, Arc::new(name.to_string()));
+                        id
+                    }
+                }
+            }
+            _ => panic!("cannot lock"),
         }
     }
 
@@ -238,7 +258,7 @@ impl Interp {
                 panic!("# code must have return op")
             }
             let op = &ops[ctx.pc];
-            debug!("eval {} {:?}", ctx.pc + 1, &ops[ctx.pc]);
+            //debug!("eval {} {:?}", ctx.pc + 1, &ops[ctx.pc]);
             match op {
                 Opcode::Nop => (),
                 Opcode::LoadConst(i) => ctx.load_const(*i as usize),
@@ -263,15 +283,15 @@ impl Interp {
                     }
                 }
                 Opcode::GetProp => {
-                    let pname = ctx.pop_string();
+                    let name = ctx.pop_string();
                     let val = ctx.pop();
                     match val {
                         Value::Module(id) => match interp.get_module_for_id(id) {
-                            Some(m) => match m.fields.get(&pname) {
-                                None => panic!("# GetProp: key {:?} is not found", pname),
+                            Some(m) => match m.get_prop(&name) {
+                                None => panic!("# GetProp: key {:?} is not found {:?}", name, m),
                                 Some(val) => ctx.load(val.clone()),
                             },
-                            _ => panic!("# module {:?} not found", id),
+                            None => panic!("# GetProp: module id {:?} not found", id),
                         },
                         _ => panic!("# GetProp non-module not impl"),
                     };
@@ -279,7 +299,8 @@ impl Interp {
                 Opcode::GetGlobal => {
                     let name = ctx.pop_string();
                     match interp.get_module(&name) {
-                        Some((id, _)) => ctx.load(Value::Module(id)),
+                        // TODO: check module whether exists or not
+                        Some(m) => ctx.load(Value::Module(m.id)),
                         None => panic!("# GetGlobal not impl non module"),
                     }
                 }
@@ -289,10 +310,17 @@ impl Interp {
                     match val {
                         Value::Module(id) => match proc.heap.get_content(id) {
                             Some(Content::Module(m)) => {
-                                m.set_name(&name);
-                                interp.add_module(m.clone())
+                                let gid = interp.heap.create(|id| {
+                                    let m = Arc::new(Module::new(id, m.desc.clone()));
+                                    interp.add_module(&name, m.clone());
+                                    Content::Module(m)
+                                });
+                                proc.heap.create(|id| Content::Global(gid));
                             }
-                            _ => panic!("# SetGlobal: module {:?} not found", name),
+                            _ => match interp.heap.get_content(id) {
+                                Some(_) => (),
+                                _ => panic!("# SetGlobal: module {:?} not found", id),
+                            },
                         },
                         _ => panic!("# SetGlobal: not module {:?}", val),
                     }
@@ -316,11 +344,12 @@ impl Interp {
                     let vals = ctx.popn(*size as usize);
                     ctx.load(Value::Array(Arc::new(vals)))
                 }
+                /*
                 Opcode::MakeBlock(BlockTag::Module, size) => {
                     // TODO: name, attributes
                     let size = *size as usize;
                     let vals = ctx.popn(size);
-                    let mut m = Module::new();
+                    let mut  = Module::new();
                     for i in 0..size {
                         if i % 2 == 0 {
                             let key = vals[i].get_string().unwrap().clone();
@@ -333,6 +362,7 @@ impl Interp {
                     let id = proc.heap.create(|_| Content::Module(Arc::new(m)));
                     ctx.load(Value::Module(id));
                 }
+                */
                 Opcode::MakeBlock(BlockTag::List, 0) => ctx.load(proc.heap.get_list_nil().1),
                 Opcode::MakeBlock(BlockTag::List, _) => {
                     let tail = ctx.pop();
@@ -353,7 +383,7 @@ impl Interp {
                     // TODO
                     let args = ctx.pop();
                     let fval = ctx.pop();
-                    println!("# spawn f {:?}, {:?}", fval, args);
+                    //println!("# spawn f {:?}, {:?}", fval, args);
                     let args = List::get_content(&*proc.heap, &args)
                         .unwrap()
                         .to_vec(&proc.heap)
@@ -363,8 +393,9 @@ impl Interp {
                     let proc2 = interp.procs.create();
                     interp.pool.process_async(move || {
                         let _ = Arc::new(Interp::eval_fun(&interp2, &proc2, &ctx2, fval, args));
-                        println!("# queue exec");
+                        //println!("# queue exec");
                         interp2.procs.finish(proc2.id);
+                        //println!("# end queue exec");
                     });
                     // TODO
                     ctx.load(Value::Nil);

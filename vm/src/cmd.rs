@@ -45,12 +45,12 @@ impl Command {
                 debug!("get module");
                 let m = match interp.get_module(&bc.module) {
                     None => panic!("# main: module not found {}", bc.module),
-                    Some((_, m)) => m,
+                    Some(m) => m,
                 };
 
                 debug!("execute 'main' function");
                 {
-                    match m.fields.get("main") {
+                    match m.desc.fields.get("main") {
                         Some(Value::CompiledCode(code)) => {
                             match Interp::eval(&interp, &proc, None, code.clone(), Vec::new()) {
                                 Ok(value) => debug!("# main => {:?}", value),

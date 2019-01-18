@@ -14,6 +14,7 @@ pub struct ObjectId {
 }
 
 pub struct Heap {
+    global: Option<Arc<Heap>>,
     pool: Arc<ThreadPool>,
     store: RecLock<ObjectStore>,
 
@@ -36,9 +37,9 @@ pub struct Object {
 pub enum Content {
     Nil,
     Module(Arc<Module>),
-    ModuleGroup(Arc<ModuleGroup>),
     List(Arc<List>),
     ListGenerator(Arc<RefCell<ListGenerator>>),
+    Global(ObjectId),
 }
 
 impl ObjectId {
@@ -54,11 +55,12 @@ impl Object {
         Object { id, content }
     }
 }
+
 unsafe impl Sync for Heap {}
 unsafe impl Send for Heap {}
 
 impl Heap {
-    pub fn new(pool: Arc<ThreadPool>) -> Heap {
+    pub fn new(global: Option<Arc<Heap>>, pool: Arc<ThreadPool>) -> Heap {
         // shared values
         let mut store = HashMap::new();
         let nil_id = ObjectId::new(0);
@@ -66,6 +68,7 @@ impl Heap {
         store.insert(nil_id, nil_obj);
 
         Heap {
+            global,
             pool,
             store: RecLock::new(ObjectStore { id: 1, store }),
             list_nil: (nil_id, Value::List(nil_id)),

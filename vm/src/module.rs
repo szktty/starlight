@@ -3,69 +3,85 @@ use std::cell::{Ref, RefCell, RefMut};
 use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::Arc;
-use sync::RecLock;
-use value::Value;
+use value::{NifFun, Value};
 
 #[derive(Debug, Clone)]
 pub struct Module {
-    pub name: RefCell<Option<String>>,
+    pub id: ObjectId,
+    pub desc: ModuleDesc,
+}
+
+#[derive(Debug, Clone)]
+pub struct ModuleDesc {
+    pub name: String,
     pub author: Option<String>,
     pub fields: HashMap<String, Value>,
 }
 
 #[derive(Debug)]
 pub struct ModuleGroup {
-    pub mods: RecLock<Arc<RefCell<HashMap<String, ObjectId>>>>,
+    pub mods: RefCell<HashMap<String, Arc<Module>>>,
+}
+
+#[derive(Debug)]
+pub struct ModuleBuilder {
+    name: String,
+    fields: HashMap<String, Value>,
 }
 
 impl Module {
-    pub fn new() -> Module {
-        Module {
-            name: RefCell::new(None),
+    pub fn new(id: ObjectId, desc: ModuleDesc) -> Module {
+        Module { id, desc }
+    }
+
+    pub fn get_prop(&self, name: &str) -> Option<&Value> {
+        self.desc.fields.get(name)
+    }
+}
+
+impl ModuleDesc {
+    pub fn new(name: &str, fields: HashMap<String, Value>) -> ModuleDesc {
+        ModuleDesc {
+            name: name.to_string(),
             author: None,
-            fields: HashMap::new(),
+            fields,
         }
-    }
-    pub fn with_name(name: &str) -> Module {
-        let m = Module::new();
-        m.set_name(name);
-        m
-    }
-    pub fn get_name(&self) -> Option<String> {
-        self.name.borrow().clone()
-    }
-    pub fn set_name(&self, name: &str) {
-        *self.name.borrow_mut() = Some(name.to_string());
     }
 }
 
 impl ModuleGroup {
     pub fn new() -> ModuleGroup {
         ModuleGroup {
-            mods: RecLock::new(Arc::new(RefCell::new(HashMap::new()))),
+            mods: RefCell::new(HashMap::new()),
         }
     }
 
-    pub fn get(&self, name: &str) -> Option<ObjectId> {
-        match self.mods.lock() {
-            Ok(_) => self.mods.get().borrow().get(name).cloned(),
-            _ => unreachable!(),
-        }
+    pub fn get(&self, name: &str) -> Option<Arc<Module>> {
+        self.mods.borrow().get(name).cloned()
     }
 
-    pub fn add(&self, name: &str, m: ObjectId) -> Option<ObjectId> {
-        match self.mods.lock() {
-            Ok(_) => self.mods.get_mut().borrow_mut().insert(name.to_string(), m),
-            _ => unreachable!(),
-        }
+    pub fn add(&self, name: &str, m: Arc<Module>) -> Option<Arc<Module>> {
+        self.mods.borrow_mut().insert(name.to_string(), m)
     }
 }
 
-impl Clone for ModuleGroup {
-    #[inline]
-    fn clone(&self) -> ModuleGroup {
-        ModuleGroup {
-            mods: RecLock::new(self.mods.get().clone()),
+impl ModuleBuilder {
+    pub fn new(name: &str) -> ModuleBuilder {
+        ModuleBuilder {
+            name: name.to_string(),
+            fields: HashMap::new(),
         }
+    }
+
+    pub fn add_value(&mut self, name: &str, value: Value) {
+        self.fields.insert(name.to_string(), value);
+    }
+
+    pub fn add_nif(&mut self, name: &str, f: NifFun, arity: usize) {
+        self.add_value(name, Value::nif(arity, f))
+    }
+
+    pub fn to_desc(&self) -> ModuleDesc {
+        ModuleDesc::new(&self.name, self.fields.clone())
     }
 }

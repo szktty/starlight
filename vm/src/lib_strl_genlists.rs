@@ -3,22 +3,20 @@ use error::{Error, ErrorKind};
 use heap::{Br, Content, Heap};
 use interp::Interp;
 use list::{BrList, List, ListGenerator};
-use module::Module;
+use module::{ModuleBuilder, ModuleDesc};
 use process::Process;
 use result::Result;
 use std::cell::RefCell;
 use std::sync::{Arc, Mutex};
 use value::Value;
 
-pub fn new() -> Module {
-    let mut m = Module::with_name("strl_genlists");
-    m.fields
-        .insert("create".to_string(), Value::nif(1, nif_create));
-    m.fields.insert("next".to_string(), Value::nif(1, nif_next));
-    m.fields.insert("add".to_string(), Value::nif(2, nif_add));
-    m.fields
-        .insert("collect".to_string(), Value::nif(1, nif_collect));
-    m
+pub fn new() -> ModuleDesc {
+    let mut build = ModuleBuilder::new("strl_genlists");
+    build.add_nif("create", nif_create, 1);
+    build.add_nif("next", nif_next, 1);
+    build.add_nif("add", nif_add, 2);
+    build.add_nif("collect", nif_collect, 1);
+    build.to_desc()
 }
 
 fn nif_create(interp: &Arc<Interp>, proc: &Arc<Process>, args: &ArgList) -> Result<Value> {

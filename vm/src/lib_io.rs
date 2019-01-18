@@ -1,16 +1,15 @@
 use arglist::ArgList;
 use interp::Interp;
-use module::Module;
+use module::{ModuleBuilder, ModuleDesc};
 use process::Process;
 use result::Result;
 use std::sync::Arc;
 use value::Value;
 
-pub fn new() -> Module {
-    let mut m = Module::with_name("io");
-    m.fields
-        .insert("fwrite".to_string(), Value::nif(1, nif_fwrite));
-    m
+pub fn new() -> ModuleDesc {
+    let mut build = ModuleBuilder::new("io");
+    build.add_nif("fwrite", nif_fwrite, 1);
+    build.to_desc()
 }
 
 fn nif_fwrite(_interp: &Arc<Interp>, proc: &Arc<Process>, args: &ArgList) -> Result<Value> {
