@@ -4,7 +4,7 @@ use rand::random;
 use std::cell::UnsafeCell;
 use std::fmt;
 use std::mem;
-use std::ops::Deref;
+use std::ops::{Deref, DerefMut};
 use std::sync::{Arc, LockResult};
 
 pub struct ThreadPool {
@@ -157,6 +157,12 @@ impl<'a, T: ?Sized> Deref for RecLockGuard<'a, T> {
 
     fn deref(&self) -> &T {
         unsafe { &*self.lock.data.get() }
+    }
+}
+
+impl<'a, T: ?Sized> DerefMut for RecLockGuard<'a, T> {
+    fn deref_mut(&mut self) -> &mut T {
+        unsafe { &mut *self.lock.data.get() }
     }
 }
 
