@@ -56,10 +56,7 @@ impl ProcessGroup {
     }
 
     pub fn finish(&self, id: usize) {
-        self.procs.lock();
-        let mut procs = self.procs.get_mut();
+        let mut procs = self.procs.lock().unwrap();
         procs.remove(&id);
-        println!("# ProcessGroup: did finish lock");
-        self.procs.unlock();
     }
 }
