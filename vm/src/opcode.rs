@@ -68,8 +68,6 @@ pub enum BlockTag {
     Bitstr,
     List,
     Tuple,
-    Process,
-    Module,
     Custom,
 }
 
