@@ -1,6 +1,6 @@
 // bytecode file
 
-use heap::{Heap, ObjectId};
+use heap::Heap;
 use list::List;
 use opcode::{BitstrEndian, BitstrSign, BitstrType, BlockTag, Opcode};
 use serde_json;

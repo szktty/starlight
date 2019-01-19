@@ -1,8 +1,6 @@
 use arglist::ArgList;
-use dispatch::{Queue, QueuePriority};
-use heap::{Content, Heap, Object, ObjectId};
-use interp_init;
-use list::{BrList, List, ListGenerator};
+use heap::{Content, Heap, ObjectId};
+use list::{BrList, List};
 use module::{Module, ModuleDesc, ModuleGroup};
 use opcode::{BlockTag, Opcode};
 use process::{Process, ProcessGroup};
@@ -11,7 +9,7 @@ use std::cell::RefCell;
 use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use sync::{RecLock, ThreadPool};
 use value::{CompiledCode, Value};
 
@@ -171,12 +169,11 @@ impl Context {
 
 impl Interp {
     pub fn new() -> Interp {
-        let pool = Arc::new(ThreadPool::new());
-        let heap = Arc::new(Heap::new(None, pool.clone()));
+        let heap = Arc::new(Heap::new(None));
         Interp {
-            pool: pool.clone(),
+            pool: Arc::new(ThreadPool::new()),
             heap: heap.clone(),
-            procs: ProcessGroup::new(heap, pool.clone()),
+            procs: ProcessGroup::new(heap),
             mods: RecLock::new(ModuleGroup::new()),
             atoms: RecLock::new(RefCell::new(HashMap::new())),
         }
@@ -315,7 +312,7 @@ impl Interp {
                                     interp.add_module(&name, m.clone());
                                     Content::Module(m)
                                 });
-                                proc.heap.create(|id| Content::Global(gid));
+                                proc.heap.create(|_| Content::Global(gid));
                             }
                             _ => match interp.heap.get_content(id) {
                                 Some(_) => (),

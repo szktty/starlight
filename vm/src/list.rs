@@ -1,6 +1,4 @@
-use error::{Error, ErrorKind};
-use heap::{Br, Content, Heap, Object, ObjectId, ToValue};
-use result::Result;
+use heap::{Br, Content, Heap, ObjectId, ToValue};
 use std::iter::Iterator;
 use std::sync::Arc;
 use value::Value;
@@ -197,14 +195,13 @@ impl Iterator for Iter {
                         }
                     },
                 },
-                _ => panic!("not list"),
             },
         }
     }
 }
 
 impl ListGenerator {
-    pub fn new(heap: Arc<Heap>, lists: Vec<Br<List>>) -> ListGenerator {
+    pub fn new(lists: Vec<Br<List>>) -> ListGenerator {
         let mut sum = 0;
         for list in lists.iter() {
             match BrList::len(list) {

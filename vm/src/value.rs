@@ -1,15 +1,11 @@
 use arglist::ArgList;
-use error::{Error, ErrorKind};
-use heap::{Content, Heap, ObjectId};
+use heap::ObjectId;
 use interp::Interp;
-use list::List;
-use module::Module;
 use opcode::Opcode;
 use process::Process;
 use result::Result;
-use std::cell::RefCell;
 use std::fmt;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 // TODO: 1 word
 #[derive(Debug, Clone)]

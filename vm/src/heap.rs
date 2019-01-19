@@ -1,11 +1,10 @@
-use dispatch::{Queue, SuspendGuard};
 use list::{List, ListGenerator};
-use module::{Module, ModuleGroup};
+use module::Module;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fmt;
 use std::sync::Arc;
-use sync::{RecLock, ThreadPool};
+use sync::RecLock;
 use value::Value;
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
@@ -14,8 +13,7 @@ pub struct ObjectId {
 }
 
 pub struct Heap {
-    global: Option<Arc<Heap>>,
-    pool: Arc<ThreadPool>,
+    pub global: Option<Arc<Heap>>,
     store: RecLock<ObjectStore>,
 
     // shared variables
@@ -60,7 +58,7 @@ unsafe impl Sync for Heap {}
 unsafe impl Send for Heap {}
 
 impl Heap {
-    pub fn new(global: Option<Arc<Heap>>, pool: Arc<ThreadPool>) -> Heap {
+    pub fn new(global: Option<Arc<Heap>>) -> Heap {
         // shared values
         let mut store = HashMap::new();
         let nil_id = ObjectId::new(0);
@@ -69,7 +67,6 @@ impl Heap {
 
         Heap {
             global,
-            pool,
             store: RecLock::new(ObjectStore { id: 1, store }),
             list_nil: (nil_id, Value::List(nil_id)),
         }

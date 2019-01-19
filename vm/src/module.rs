@@ -1,7 +1,6 @@
 use heap::ObjectId;
-use std::cell::{Ref, RefCell, RefMut};
+use std::cell::RefCell;
 use std::collections::HashMap;
-use std::rc::Rc;
 use std::sync::Arc;
 use value::{NifFun, Value};
 

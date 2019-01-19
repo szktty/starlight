@@ -1,13 +1,13 @@
 use arglist::ArgList;
 use error::{Error, ErrorKind};
-use heap::{Br, Content, Heap};
+use heap::{Br, Content};
 use interp::Interp;
 use list::{BrList, List, ListGenerator};
 use module::{ModuleBuilder, ModuleDesc};
 use process::Process;
 use result::Result;
 use std::cell::RefCell;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use value::Value;
 
 pub fn new() -> ModuleDesc {
@@ -35,15 +35,15 @@ fn nif_create(interp: &Arc<Interp>, proc: &Arc<Process>, args: &ArgList) -> Resu
             }
         }
     }
-    let gen = ListGenerator::new(proc.heap.clone(), lists);
+    let gen = ListGenerator::new(lists);
     let id = interp
         .heap
-        .create(|id| Content::ListGenerator(Arc::new(RefCell::new(gen))));
+        .create(|_| Content::ListGenerator(Arc::new(RefCell::new(gen))));
     Ok(Value::ListGenerator(id))
 }
 
-fn nif_next(interp: &Arc<Interp>, proc: &Arc<Process>, args: &ArgList) -> Result<Value> {
-    let mut gen = try!(args.get_listgen(&proc.heap, 0));
+fn nif_next(_interp: &Arc<Interp>, proc: &Arc<Process>, args: &ArgList) -> Result<Value> {
+    let gen = try!(args.get_listgen(&proc.heap, 0));
     let mut genref = (*gen).borrow_mut();
     match genref.next() {
         None => Ok(Value::Nil),
@@ -51,16 +51,16 @@ fn nif_next(interp: &Arc<Interp>, proc: &Arc<Process>, args: &ArgList) -> Result
     }
 }
 
-fn nif_add(interp: &Arc<Interp>, proc: &Arc<Process>, args: &ArgList) -> Result<Value> {
-    let mut gen = try!(args.get_listgen(&proc.heap, 0));
+fn nif_add(_interp: &Arc<Interp>, proc: &Arc<Process>, args: &ArgList) -> Result<Value> {
+    let gen = try!(args.get_listgen(&proc.heap, 0));
     let value = args.get(1);
     let mut genref = (*gen).borrow_mut();
     genref.add(value.clone());
     Ok(Value::Nil)
 }
 
-fn nif_collect(interp: &Arc<Interp>, proc: &Arc<Process>, args: &ArgList) -> Result<Value> {
-    let mut gen = try!(args.get_listgen(&proc.heap, 0));
-    let mut genref = (*gen).borrow_mut();
+fn nif_collect(_interp: &Arc<Interp>, proc: &Arc<Process>, args: &ArgList) -> Result<Value> {
+    let gen = try!(args.get_listgen(&proc.heap, 0));
+    let genref = (*gen).borrow();
     Ok(List::value_from_list(&proc.heap, genref.collect()))
 }

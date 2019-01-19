@@ -1,7 +1,7 @@
 use heap::Heap;
 use std::collections::HashMap;
-use std::sync::{Arc, RwLock};
-use sync::{RecLock, ThreadPool};
+use std::sync::Arc;
+use sync::RecLock;
 
 #[derive(Debug, Clone)]
 pub struct Process {
@@ -11,25 +11,23 @@ pub struct Process {
 
 pub struct ProcessGroup {
     global: Arc<Heap>,
-    pool: Arc<ThreadPool>,
     procs: RecLock<HashMap<usize, Arc<Process>>>,
 }
 
 impl Process {
     #[inline]
-    fn new(global: Option<Arc<Heap>>, id: usize, pool: Arc<ThreadPool>) -> Process {
+    fn new(global: Option<Arc<Heap>>, id: usize) -> Process {
         Process {
             id,
-            heap: Arc::new(Heap::new(global, pool.clone())),
+            heap: Arc::new(Heap::new(global)),
         }
     }
 }
 
 impl ProcessGroup {
-    pub fn new(global: Arc<Heap>, pool: Arc<ThreadPool>) -> ProcessGroup {
+    pub fn new(global: Arc<Heap>) -> ProcessGroup {
         ProcessGroup {
             global,
-            pool,
             procs: RecLock::new(HashMap::new()),
         }
     }
@@ -43,11 +41,7 @@ impl ProcessGroup {
                 if id > 1000000 {
                     //panic!("ok {}", id)
                 }
-                let proc = Arc::new(Process::new(
-                    Some(self.global.clone()),
-                    id,
-                    self.pool.clone(),
-                ));
+                let proc = Arc::new(Process::new(Some(self.global.clone()), id));
                 procs.insert(id, proc.clone());
                 proc
             }
