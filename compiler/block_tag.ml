@@ -4,7 +4,6 @@ type t =
   | Bitstr
   | List
   | Tuple
-  | Process
 
 let to_string = function
   | String -> "string"
@@ -12,7 +11,6 @@ let to_string = function
   | Bitstr -> "bitstr"
   | List -> "list"
   | Tuple -> "tuple"
-  | Process -> "process"
 
 let to_repr = function
   | String -> "String"
@@ -20,4 +18,3 @@ let to_repr = function
   | Bitstr -> "Bitstr"
   | List -> "List"
   | Tuple -> "Tuple"
-  | Process -> "Process"
