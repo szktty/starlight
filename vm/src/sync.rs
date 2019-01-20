@@ -175,5 +175,7 @@ impl<'a, T: ?Sized> Drop for RecLockGuard<'a, T> {
     }
 }
 
-impl<'a, T: ?Sized> !Send for RecLockGuard<'a, T> {}
+// nightly only
+// impl<'a, T: ?Sized> !Send for RecLockGuard<'a, T> {}
+
 unsafe impl<'a, T: ?Sized + Sync> Sync for RecLockGuard<'a, T> {}
