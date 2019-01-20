@@ -11,8 +11,7 @@ args:
         takes_value: true
     - INPUT:
         help: Sets the input file to use
-        required: true
-        index: 1
+        multiple: true
     - debug:
         short: d
         long: debug
