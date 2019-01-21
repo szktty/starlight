@@ -12,12 +12,12 @@ pub fn new() -> ModuleDesc {
     build.to_desc()
 }
 
-fn nif_fwrite(_interp: &Arc<Interp>, _proc: &Arc<Process>, args: &ArgList) -> Result<Value> {
+fn nif_fwrite(_interp: &Arc<Interp>, proc: &Arc<Process>, args: &ArgList) -> Result<Value> {
     let fmt_val = args.get(0);
     match fmt_val.get_string() {
         None => {
             // TODO: bad arg
-            println!("{}", fmt_val.to_string());
+            println!("{}", fmt_val.to_string(&proc.heap));
             return Ok(Value::Nil);
         }
         Some(fmt) => {

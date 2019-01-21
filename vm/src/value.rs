@@ -1,6 +1,7 @@
 use arglist::ArgList;
-use heap::ObjectId;
+use heap::{Heap, ObjectId};
 use interp::Interp;
+use list::{BrList, Cell};
 use opcode::Opcode;
 use process::Process;
 use result::Result;
@@ -113,13 +114,25 @@ impl Value {
         !self.eq(other)
     }
 
-    pub fn to_string(&self) -> String {
+    pub fn to_string(&self, heap: &Arc<Heap>) -> String {
         match self {
             Value::Atom(s) => format!("{}", s),
             Value::Bool(v) => format!("{}", v),
             Value::Int(v) => format!("{}", v),
             Value::String(s) => format!("{:?}", s),
-            Value::List(id) => format!("list({}", id.id),
+            Value::List(_) => {
+                let br = BrList::from_value(heap.clone(), self).unwrap();
+                let mut buf: Vec<String> = Vec::new();
+                for cell in BrList::iter(&br) {
+                    match cell {
+                        Cell::Proper(e) => buf.push(e.to_string(heap)),
+                        Cell::Improper(hd, tl) => {
+                            buf.push(format!("{}|{}", hd.to_string(heap), tl.to_string(heap)))
+                        }
+                    }
+                }
+                format!("[{}]", buf.join(", "))
+            }
             _ => format!("{:?}", self),
         }
     }
