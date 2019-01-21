@@ -18,6 +18,20 @@ let rec to_sexp = function
       (List.map (Seplist.values attr.export_attr_funs)
          ~f:(fun fsig -> Sexp.List [Sexp.Atom fsig.fun_sig_name.desc;
                                     Sexp.Atom fsig.fun_sig_arity.desc]))
+  | Record_attr attr ->
+    let fields = match attr.rec_attr_fields with
+      | None -> []
+      | Some fields ->
+        List.map (extract fields)
+          ~f:(fun field ->
+              let name = field.ty_field_name.desc in
+              let init = Option.value_map field.ty_field_init
+                  ~default:(Sexp.Atom "<none>")
+                  ~f:to_sexp 
+              in
+              Sexp.List [Sexp.Atom name; init])
+    in
+    Sexp.tagged "record" [Sexp.Atom attr.rec_attr_name.desc; Sexp.List fields]
   | Fun_decl decl ->
     Sexp.tagged "fun_decl" (sexp_fun_body decl.fun_decl_body)
   | Case case ->
@@ -69,10 +83,12 @@ let rec to_sexp = function
   | String texts ->
     Sexp.tagged "string" (List.map texts ~f:(fun text -> Sexp.Atom text.desc))
   | List list ->
-    Sexp.tagged "list" [Sexp.List (to_sexp_seplist list.list_head);
-                        match list.list_tail with
-                        | None -> Sexp.Atom "nil"
-                        | Some exp -> to_sexp exp]
+    let head = to_sexp_seplist list.list_head in
+    let tail = match list.list_tail with
+      | None -> []
+      | Some exp -> [to_sexp exp]
+    in
+    Sexp.tagged "list" (head @ tail)
   | List_compr com ->
     Sexp.tagged "list_compr" [to_sexp com.compr_exp;
                               Sexp.List (to_sexp_seplist com.compr_quals)]
@@ -92,6 +108,26 @@ let rec to_sexp = function
                             ~f:(fun ty -> Sexp.Atom ty.desc)]
   | Tuple exps ->
     Sexp.tagged "tuple" (to_sexp_seplist exps.enc_desc)
+  | Field field ->
+    let exp =
+      Option.value_map field.field_exp
+        ~default:(Sexp.Atom "<none>")
+        ~f:to_sexp in
+    let rname = field.field_rname.desc in
+    let fname = field.field_fname.desc in
+    Sexp.tagged "field" [exp; Sexp.Atom rname; Sexp.Atom fname]
+  | Update up ->
+    let exp =
+      Option.value_map up.update_exp
+        ~default:(Sexp.Atom "<none>")
+        ~f:to_sexp in
+    let name = up.update_name.desc in
+    let assocs =
+      List.map (extract up.update_assocs)
+        ~f:(fun assoc ->
+            Sexp.List [Sexp.Atom (assoc.assoc_key.desc);
+                       to_sexp assoc.assoc_val]) in
+    Sexp.tagged "update" [exp; Sexp.Atom name; Sexp.List assocs]
   | Anon_fun fn ->
     Sexp.tagged "anon_fun" (sexp_fun_body fn.anon_fun_body)
   | _ -> Sexp.Atom "<notimpl>"
