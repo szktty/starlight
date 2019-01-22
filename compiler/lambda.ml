@@ -78,6 +78,9 @@ let rec from_node node =
                 in
                 (attr.user_attr_tag.desc, values) :: attrs, funs
 
+              | Record_attr attr ->
+                f_rec_attr attr :: attrs, funs
+
               | Fun_decl decl ->
                 attrs, f_decl decl :: funs
 
@@ -270,6 +273,25 @@ let rec from_node node =
       Temp_bitstr (f_binelt elt)
 
     | _ -> Nop
+
+  and f_rec_attr attr =
+    let f_field (field : Ast_t.type_field) =
+      let init = Option.value_map field.ty_field_init ~default:Undef ~f in
+      make_tuple [
+        make_tuple [Atom "name"; Atom field.ty_field_name.desc];
+        make_tuple [Atom "init"; init]
+      ]
+    in
+    let name = attr.rec_attr_name.desc in
+    let fields =
+      Option.value_map attr.rec_attr_fields
+        ~default:[]
+        ~f:(fun fields -> List.map (extract fields) ~f:f_field)
+    in
+    ("record", 
+     make_tuple [
+       make_tuple [Atom "name"; Atom name];
+       make_tuple [Atom "fields"; make_tuple fields]])
 
   and f_match
       (value : Ast_t.t)
