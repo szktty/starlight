@@ -20,6 +20,7 @@ type t =
 
   | Get_field of int (* index *)
   | Get_prop
+  | Get_assoc of int (* key index *)
   | Get_global
   | Get_bitstr of Bitstr.spec
   | Set_field of int
@@ -44,6 +45,8 @@ type t =
   | Make_fun of int * int (* function at constant *)
   | Make_ok of int
   | Make_error of int
+  | Create_rec of int * int (* record name, field count *)
+  | Update_rec of int (* field count *)
 
   | Apply of int
   | Spawn

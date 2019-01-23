@@ -33,6 +33,7 @@ module Debug = struct
       | Store_pop_local i -> sprintf "store local %d; pop" i
       | Get_field i -> sprintf "get field %d" i
       | Get_prop -> "get property"
+      | Get_assoc i -> sprintf "get assoc %s" (fmt.const i)
       | Get_global -> "get global"
       | Get_bitstr spec ->
         sprintf "get <<%s>>" (Bitstr.Repr.spec_to_string spec)
@@ -59,6 +60,8 @@ module Debug = struct
         sprintf "make function with %d at %d" i n
       | Make_ok n -> sprintf "make #ok (%d)" n
       | Make_error n -> sprintf "make #error (%d)" n
+      | Create_rec (i, n) -> sprintf "create record %s %d" (fmt.const i) n
+      | Update_rec n -> sprintf "update record %d" n
       | Apply nargs -> sprintf "apply %d" nargs
       | Spawn -> "spawn"
       | Not -> "not"

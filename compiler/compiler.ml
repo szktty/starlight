@@ -407,6 +407,28 @@ let compile form =
       f ctx exp;
       add_store_local ctx name
 
+    | Update_rec up ->
+      add_comment ctx (next_pc ctx) "create record";
+      let count = List.length up.up_assocs in
+      begin match up.up_exp with
+        | None ->
+          let name_i = add_atom ctx up.up_name in
+          List.iter up.up_assocs
+            ~f:(fun (k, v) ->
+                add_load_const ctx (add_atom ctx up.up_name);
+                f ctx v);
+          popn ctx (count * 2);
+          add_op_push ctx (Create_rec (name_i, count))
+        | Some exp ->
+          f ctx exp;
+          List.iter up.up_assocs
+            ~f:(fun (k, v) ->
+                add_load_const ctx (add_atom ctx up.up_name);
+                f ctx v);
+          popn ctx (count * 2 - 1);
+          add_op_push ctx (Update_rec count)
+      end
+
     | Block (tag, exps) ->
       begin match exps with
         | [] ->

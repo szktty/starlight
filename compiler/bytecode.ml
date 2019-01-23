@@ -121,6 +121,10 @@ module Code = struct
         tagged "MakeBlock" [`String (Block_tag.to_repr tag); `Int size]
       | Make_bitstr spec ->
         tagged "MakeBitstr" (bits_spec_json spec)
+      | Create_rec (i, n) ->
+        tagged "CreateRecord" [`Int i; `Int n]
+      | Update_rec n ->
+        tagged "UpdateRecord" [`Int n]
       | Apply nargs -> tagged "Apply" [`Int nargs]
       | Spawn -> `String "Spawn"
       | Return -> `String "Return"
