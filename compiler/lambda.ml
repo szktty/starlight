@@ -21,6 +21,9 @@ let g_mod_prop mname fname =
 let make_tuple elts =
   Make_block (Block_tag.Tuple, elts)
 
+let tuple elts =
+  Block (Block_tag.Tuple, elts)
+
 let rec from_node node =
   let gen = Id.gen () in
   let cur_exit = ref (-1) in
@@ -71,10 +74,10 @@ let rec from_node node =
               | User_attr attr ->
                 let values =
                   Option.value_map attr.user_attr_values
-                    ~default:(make_tuple [])
+                    ~default:(tuple [])
                     ~f:(fun values ->
                         let values = List.map (extract values) ~f in
-                        make_tuple values)
+                        tuple values)
                 in
                 (attr.user_attr_tag.desc, values) :: attrs, funs
 
@@ -92,7 +95,7 @@ let rec from_node node =
         List.fold_left (List.rev attrs)
           ~init:[]
           ~f:(fun accu (name, value) ->
-              make_tuple [Atom name; value]:: accu)
+              tuple [Atom name; value]:: accu)
         |> List.rev
       in
       let binds, funs =
@@ -101,7 +104,7 @@ let rec from_node node =
           ~f:(fun (binds, funs) (name, id, decl) ->
               (id, decl) :: binds, make_tuple [Atom name; Local id] :: funs)
       in
-      let attrs_block = Make_block (Block_tag.Tuple, List.rev attrs) in
+      let attrs_block = Block (Block_tag.Tuple, List.rev attrs) in
       let funs_block = Make_block (Block_tag.Tuple, List.rev funs) in
       let args = [attrs_block; funs_block] in
 
@@ -277,9 +280,9 @@ let rec from_node node =
   and f_rec_attr attr =
     let f_field (field : Ast_t.type_field) =
       let init = Option.value_map field.ty_field_init ~default:Undef ~f in
-      make_tuple [
-        make_tuple [Atom "name"; Atom field.ty_field_name.desc];
-        make_tuple [Atom "init"; init]
+      tuple [
+        tuple [Atom "name"; Atom field.ty_field_name.desc];
+        tuple [Atom "init"; init]
       ]
     in
     let name = attr.rec_attr_name.desc in
@@ -289,9 +292,9 @@ let rec from_node node =
         ~f:(fun fields -> List.map (extract fields) ~f:f_field)
     in
     ("record", 
-     make_tuple [
-       make_tuple [Atom "name"; Atom name];
-       make_tuple [Atom "fields"; make_tuple fields]])
+     tuple [
+       tuple [Atom "name"; Atom name];
+       tuple [Atom "fields"; tuple fields]])
 
   and f_match
       (value : Ast_t.t)
