@@ -567,6 +567,8 @@ let compile form =
   and f_const_block ctx tag exps =
     let f = function
       | Lambda_t.Bitstr bits -> Const_bits (f_bits ctx bits)
+      | Undef -> Const_atom "undefined"
+      | Atom name -> Const_atom name
       | Int s -> Const_int s
       | Block (tag, exps) -> f_const_block ctx tag exps
       | exp -> failwith (sprintf "invalid %s" (Lambda.to_string exp))
