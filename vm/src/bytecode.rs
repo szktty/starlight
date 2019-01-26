@@ -70,6 +70,9 @@ impl BcConst {
                 let elts = vals.iter().map(|val| val.to_value(heap)).collect();
                 Value::List(List::from_list(heap, elts).get_id(heap))
             }
+            BcConst::Block(BlockTag::Tuple, vals) => Value::Tuple(Arc::new(
+                vals.iter().map(|val| val.to_value(heap)).collect(),
+            )),
             _ => panic!("# not impl {:?}", self),
         }
     }

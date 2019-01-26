@@ -264,22 +264,21 @@ impl Interp {
                 Opcode::LoadTrue => ctx.load(Value::Bool(true)),
                 Opcode::LoadFalse => ctx.load(Value::Bool(false)),
                 Opcode::LoadUndef => ctx.load(Value::Atom(Arc::new("undef".to_string()))),
-                Opcode::LoadOk => ctx.load(Value::Atom(Arc::new("ok".to_string()))),
-                Opcode::LoadError => ctx.load(Value::Atom(Arc::new("error".to_string()))),
+                Opcode::LoadOk(0) => ctx.load(Value::Atom(Arc::new("ok".to_string()))),
+                Opcode::LoadError(0) => ctx.load(Value::Atom(Arc::new("error".to_string()))),
                 Opcode::LoadBitstr(size, val) => ctx.load(Value::Bitstr32(*size, *val)),
-                Opcode::LoadEmpty(BlockTag::List) => ctx.load(proc.heap.get_list_nil().1),
                 Opcode::StorePopLocal(i) => {
                     let val = ctx.pop();
                     ctx.store(*i as usize, val);
                 }
-                Opcode::GetField(i) => {
+                Opcode::GetBlockField(i) => {
                     let val = ctx.pop();
                     match val {
                         Value::Tuple(elts) => ctx.load(elts[*i as usize].clone()),
                         _ => panic!("# GetField not supported {:?}", val),
                     }
                 }
-                Opcode::GetProp => {
+                Opcode::XGetBlockField => {
                     let name = ctx.pop_string();
                     let val = ctx.pop();
                     match val {
@@ -336,13 +335,12 @@ impl Interp {
                     }
                 }
                 Opcode::Return => return Ok(ctx.top().clone()),
-                Opcode::ReturnUndef => return Ok(Value::Atom(Arc::new("undefined".to_string()))),
-                Opcode::MakeBlock(BlockTag::NonConst, size) => {
+                Opcode::CreateBlock(BlockTag::NonConst, size) => {
                     let vals = ctx.popn(*size as usize);
                     ctx.load(Value::Array(Arc::new(vals)))
                 }
                 /*
-                Opcode::MakeBlock(BlockTag::Module, size) => {
+                Opcode::CreateBlock(BlockTag::Module, size) => {
                     // TODO: name, attributes
                     let size = *size as usize;
                     let vals = ctx.popn(size);
@@ -360,13 +358,13 @@ impl Interp {
                     ctx.load(Value::Module(id));
                 }
                 */
-                Opcode::MakeBlock(BlockTag::List, 0) => ctx.load(proc.heap.get_list_nil().1),
-                Opcode::MakeBlock(BlockTag::List, _) => {
+                Opcode::CreateBlock(BlockTag::List, 0) => ctx.load(proc.heap.get_list_nil().1),
+                Opcode::CreateBlock(BlockTag::List, _) => {
                     let tail = ctx.pop();
                     let head = ctx.pop();
                     ctx.load(List::new_value(&proc.heap, head, tail))
                 }
-                Opcode::MakeBlock(BlockTag::Tuple, size) => {
+                Opcode::CreateBlock(BlockTag::Tuple, size) => {
                     let vals = ctx.popn(*size as usize);
                     ctx.load(Value::Tuple(Arc::new(vals)))
                 }
@@ -397,7 +395,7 @@ impl Interp {
                     // TODO
                     ctx.load(Value::Nil);
                 }
-                Opcode::BlockSize => {
+                Opcode::GetBlockSize => {
                     let val = ctx.pop();
                     let list = BrList::from_value(proc.heap.clone(), &val).unwrap();
                     match BrList::len(&list) {
