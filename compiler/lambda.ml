@@ -37,30 +37,38 @@ let rec from_node node =
       mod_exports = [];
       mod_code = Nop;
     } in
+  let mod_desc = ref Module.empty in
   let rec f = function
     | Ast_t.Module m ->
+      let mod_name = ref "" in
+      let export_desc : (string * int) list ref = ref [] in
+      let record_desc : Module.record list ref = ref [] in
+
       (* attributes and declarations *)
-      let attrs, funs =
+      let attrs, fdecls =
         List.fold_left m.module_decls
           ~init:([], [])
-          ~f:(fun (attrs, funs) decl ->
+          ~f:(fun (attrs, fdecls) decl ->
               match decl with
               | Modname_attr attr ->
                 let name = attr.modname_attr_name.desc in
+                mod_name := name;
                 lmod := { !lmod with mod_name = Some name };
-                ("module", Atom name) :: attrs, funs
+                ("module", Atom name) :: attrs, fdecls
 
               | Author_attr attr ->
                 let name = attr.auth_attr_name.desc in
                 lmod := { !lmod with mod_authors = name :: !lmod.mod_authors };
-                ("author", Atom name) :: attrs, funs
+                ("author", Atom name) :: attrs, fdecls
 
               | Export_attr attr ->
                 let sigs = List.map
                     (Seplist.values attr.export_attr_funs)
                     ~f:(fun fsig ->
-                        fsig.fun_sig_name.desc,
-                        (Int.of_string fsig.fun_sig_arity.desc))
+                        let name = fsig.fun_sig_name.desc in
+                        let arity = Int.of_string fsig.fun_sig_arity.desc in
+                        export_desc := (name, arity) :: !export_desc;
+                        name, arity)
                 in
                 let attrs = List.fold_left sigs
                     ~init:attrs
@@ -69,7 +77,7 @@ let rec from_node node =
                                   mod_exports = (name, arity) :: !lmod.mod_exports };
                         ("export", Fun_sig (name, arity)) :: attrs)
                 in
-                attrs, funs
+                attrs, fdecls
 
               | User_attr attr ->
                 let values =
@@ -79,16 +87,26 @@ let rec from_node node =
                         let values = List.map (extract values) ~f in
                         tuple values)
                 in
-                (attr.user_attr_tag.desc, values) :: attrs, funs
+                (attr.user_attr_tag.desc, values) :: attrs, fdecls
 
               | Record_attr attr ->
-                f_rec_attr attr :: attrs, funs
+                let desc, attr = f_rec_attr attr in
+                record_desc := desc :: !record_desc;
+                attr :: attrs, fdecls
 
               | Fun_decl decl ->
-                attrs, f_decl decl :: funs
+                attrs, decl :: fdecls
 
               | _ -> failwith "notimpl")
       in
+
+      (* add module description *)
+      mod_desc := { Module.name = !mod_name;
+                    exports = List.rev !export_desc;
+                    records = List.rev !record_desc };
+      Module.add !mod_desc;
+
+      let funs = List.rev_map fdecls ~f:f_decl in
 
       (* args *)
       let attrs =
@@ -200,8 +218,21 @@ let rec from_node node =
       end
 
     | Field fld ->
-      let exp = Option.map fld.field_exp ~f in
-      Get_rec (exp, fld.field_rname.desc, fld.field_fname.desc)
+      let rname = fld.field_rname.desc in
+      let fname = fld.field_fname.desc in
+      let r = match Module.get_rec !mod_desc rname with
+        | None -> failwith (sprintf "record #%s not found" rname)
+        | Some r -> r
+      in
+      let i = match Module.get_field r fname with
+        | None -> failwith (sprintf "#%s.%s not found" r.rec_name fname)
+        | Some i -> i
+      in
+      let i' = Int (Int.to_string i) in
+      begin match Option.map fld.field_exp ~f with
+        | None -> i'
+        | Some exp -> Get_field (exp, i')
+      end
 
     | Update up ->
       let exp = Option.map up.update_exp ~f in
@@ -270,23 +301,28 @@ let rec from_node node =
 
   and f_rec_attr attr =
     let f_field (field : Ast_t.type_field) =
+      let name = field.ty_field_name.desc in
       let init = Option.value_map field.ty_field_init
           ~default:(Atom "undefined") ~f in
-      tuple [
-        tuple [Atom "name"; Atom field.ty_field_name.desc];
+      name, tuple [
+        tuple [Atom "name"; Atom name];
         tuple [Atom "init"; init]
       ]
     in
     let name = attr.rec_attr_name.desc in
-    let fields =
+    let fnames, fexps =
       Option.value_map attr.rec_attr_fields
         ~default:[]
         ~f:(fun fields -> List.map (extract fields) ~f:f_field)
+      |> List.rev
+      |> List.unzip
     in
-    ("record", 
-     tuple [
-       tuple [Atom "name"; Atom name];
-       tuple [Atom "fields"; tuple fields]])
+    ({ Module.rec_name = name;
+       rec_fields = fnames },
+     ("record", 
+      tuple [
+        tuple [Atom "name"; Atom name];
+        tuple [Atom "fields"; tuple fexps]]))
 
   and f_match
       (value : Ast_t.t)

@@ -178,6 +178,7 @@ FILES[] =
 	lexer
 	located
 	location
+	module
 	opcode
 	parser
 	position
