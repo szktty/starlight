@@ -91,9 +91,10 @@ module Code = struct
     let rec op_to = function
       | Opcode_t.Nop -> `String "Nop"
       | Ref op -> op_to !op
-      | Load_true -> `String "LoadTrue"
-      | Load_false -> `String "LoadFalse"
-      | Load_undef -> `String "LoadUndef"
+      | Load_bool true -> `String "LoadTrue"
+      | Load_bool false -> `String "LoadFalse"
+      | Load_atom `Undef -> `String "LoadUndef"
+      | Load_atom `Nil -> `String "LoadNil"
       | Load_const i -> tagged "LoadConst" [`Int i]
       | Load_int value -> tagged "LoadInt" [`Int value]
       | Load_local i -> tagged "LoadLocal" [`Int i]
@@ -101,38 +102,37 @@ module Code = struct
         tagged "LoadBitstr" [`Int size; `Int value]
       | Load_native_bitstr (size, value) ->
         tagged "LoadNativeBitstr" [`Int size; `Int value]
-      | Load_ok -> `String "LoadOk"
-      | Load_error -> `String "LoadError"
-      | Load_empty tag ->
-        tagged "LoadEmpty" [`String (Block_tag.to_repr tag)]
+      | Load_ok n -> tagged "LoadOk" [`Int n]
+      | Load_error n -> tagged "LoadError" [`Int n]
       | Load_pid -> `String "LoadPid"
-      | Get_global -> `String "GetGlobal"
-      | Get_prop -> `String "GetProp"
-      | Get_field i -> tagged "GetField" [`Int i]
       | Store_pop_local i -> tagged "StorePopLocal" [`Int i]
-      | Set_field i -> tagged "SetField" [`Int i]
+      | Get_global -> `String "GetGlobal"
       | Set_global -> `String "SetGlobal"
-      | Branch_true size -> tagged "BranchTrue" [`Int !size]
-      | Branch_false size -> tagged "BranchFalse" [`Int !size]
+      | Branch (true, size) -> tagged "BranchTrue" [`Int !size]
+      | Branch (false, size) -> tagged "BranchFalse" [`Int !size]
       | Jump size -> tagged "Jump" [`Int !size]
       | Loophead -> `String "Loophead"
       | No_match -> `String "NoMatch"
-      | Make_block (tag, size) ->
-        tagged "MakeBlock" [`String (Block_tag.to_repr tag); `Int size]
-      | Make_bitstr spec ->
-        tagged "MakeBitstr" (bits_spec_json spec)
+      | Create_block (tag, size) ->
+        tagged "CreateBlock" [`String (Block_tag.to_repr tag); `Int size]
+      | Get_block_field (Some i) -> tagged "GetBlockField" [`Int i]
+      | Get_block_field None -> `String "XGetBlockField"
+      | Set_block_field (Some i) -> tagged "SetBlockField" [`Int i]
+      | Set_block_field None -> `String "XSetBlockField"
+      | Get_block_size -> `String "GetBlockSize"
+      | Test_block tag ->
+        tagged "TestBlock" [`String (Block_tag.to_repr tag)]
+      | Create_bitstr spec ->
+        tagged "CreateBitstr" (bits_spec_json spec)
       | Create_rec (i, n) ->
         tagged "CreateRecord" [`Int i; `Int n]
       | Update_rec n ->
         tagged "UpdateRecord" [`Int n]
+      | Get_rec_field i ->
+        tagged "GetRecordField" [`Int i]
       | Apply nargs -> tagged "Apply" [`Int nargs]
       | Spawn -> `String "Spawn"
       | Return -> `String "Return"
-      | Return_undef -> `String "ReturnUndef"
-      | Return_true -> `String "ReturnTrue"
-      | Return_false -> `String "ReturnFalse"
-      | Return_ok -> `String "ReturnOk"
-      | Return_error -> `String "ReturnError"
       | Pop -> `String "Pop"
       | Not -> `String "Not"
       | Eq -> `String "Eq"
@@ -143,12 +143,10 @@ module Code = struct
       | Sub -> `String "Sub"
       | Mul -> `String "Mul"
       | Rem -> `String "Rem"
-      | Block_size -> `String "BlockSize"
       | List_len -> `String "ListLen"
       | List_cons -> `String "ListCons"
       | List_concat -> `String "ListConcat"
       | List_sub -> `String "ListSub"
-      | Test_tuple -> `String "TestTuple"
       | Test_nonnil -> `String "TestNonNil"
       | _ -> failwith "notimpl"
     in

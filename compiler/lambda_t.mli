@@ -50,20 +50,17 @@ type t =
   | List_sub of t * t
   | Local of Id.t
   | Atom of string
-  | Undef
   | Bool of bool
   | String of string
   | Int of string
   | Float of string
   | Block of Block_tag.t * t list (* tag, exps *)
-  | Make_block of Block_tag.t * t list (* tag, exps *)
+  | Create_block of Block_tag.t * t list (* tag, exps *)
   | Temp_block of Block_tag.t * t list (* tag, exps *)
   | Bitstr of (t, t) Bitstr.t
-  | Make_bitstr of (t, t) Bitstr.t
+  | Create_bitstr of (t, t) Bitstr.t
   | Temp_bitstr of (t, t) Bitstr.t
-  | Ok0
   | Ok of t list
-  | Error0
   | Error of t list
   | Test_atom of t
   | Test_binary of t

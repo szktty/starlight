@@ -77,8 +77,8 @@ let rec to_sexp = function
     Sexp.tagged "try" [Sexp.Atom id; to_sexp action]
   | Loop (cond, body) ->
     Sexp.tagged "loop" [to_sexp cond; to_sexp body]
-  | Make_block (tag, elts) ->
-    Sexp.tagged "make_block"
+  | Create_block (tag, elts) ->
+    Sexp.tagged "create_block"
       [Sexp.Atom (Block_tag.to_string tag);
        Sexp.List (List.map elts ~f:to_sexp)]
   | Local name -> Sexp.Atom ("$" ^ name)
@@ -131,7 +131,6 @@ let rec to_sexp = function
     Sexp.tagged "div" [to_sexp a; to_sexp b]
   | Atom name ->
     Sexp.Atom (name ^ "!")
-  | Undef -> Sexp.Atom "undef"
   | Bool true -> Sexp.Atom "true"
   | Bool false -> Sexp.Atom "false"
   | String s -> Sexp.tagged "string" [String.sexp_of_t s]
@@ -143,8 +142,8 @@ let rec to_sexp = function
        Sexp.List (List.map elts ~f:to_sexp)]
   | Bitstr bits ->
     Sexp.tagged "bitstr" (bits_to_sexp bits)
-  | Make_bitstr bits ->
-    Sexp.tagged "make_bitstr" (bits_to_sexp bits)
+  | Create_bitstr bits ->
+    Sexp.tagged "create_bitstr" (bits_to_sexp bits)
   | Block_size exp ->
     Sexp.tagged "block_size" [to_sexp exp]
   | Block_first exp ->
@@ -157,12 +156,12 @@ let rec to_sexp = function
     Sexp.tagged "++" [to_sexp a; to_sexp b]
   | List_sub (a, b) ->
     Sexp.tagged "--" [to_sexp a; to_sexp b]
-  | Ok0 ->
-    Sexp.Atom "ok0"
+  | Ok [] ->
+    Sexp.Atom "ok"
   | Ok exps ->
     Sexp.tagged "ok" (list_to_sexp exps)
-  | Error0 ->
-    Sexp.Atom "error0"
+  | Error [] ->
+    Sexp.Atom "error"
   | Error exps ->
     Sexp.tagged "error" (list_to_sexp exps)
   | Test_atom exp ->

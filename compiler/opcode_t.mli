@@ -12,9 +12,10 @@ type t =
   | Load_pid
   | Load_context
   | Load_self_fun
-  | Load_global
   | Store_pop_local of int
-  | Store_pop_global
+
+  | Get_global
+  | Set_global
 
   | Return
   | Pop
@@ -25,9 +26,9 @@ type t =
   | Throw
 
   | Create_block of Block_tag.t * int (* tag, size *)
-  | Get_field of Block_tag.t * int (* index *)
-  | Set_field of Block_tag.t * int
-  | Get_block_size of Block_tag.t 
+  | Get_block_field of int option (* index *)
+  | Set_block_field of int option
+  | Get_block_size
   | Test_block of Block_tag.t 
 
   | Create_bitstr of Bitstr.spec
@@ -39,6 +40,7 @@ type t =
 
   | Create_rec of int * int (* record name, field count *)
   | Update_rec of int (* field count *)
+  | Get_rec_field of int (* field name index *)
 
   | List_len
   | List_cons

@@ -160,7 +160,7 @@ module Context = struct
     add_op_push ctx (Load_const i)
 
   let add_load_undef ctx =
-    add_op_push ctx Load_undef
+    add_op_push ctx (Load_atom `Undef)
 
   let add_load_int ctx value =
     add_op_push ctx (Load_int value)
@@ -169,14 +169,10 @@ module Context = struct
     add_op_pop ctx (Store_pop_local (get_var ctx name))
 
   let add_make_block ctx tag size =
-    add_op_push ctx (Make_block (tag, size))
+    add_op_push ctx (Create_block (tag, size))
 
   let add_branch ctx flag dest =
-    let op = match flag with
-      | true -> Opcode_t.Branch_true dest
-      | false -> Branch_false dest
-    in
-    add_op_pop ctx op
+    add_op_pop ctx (Branch (flag, dest))
 
   let add_loophead ctx =
     add_op ctx Loophead
@@ -273,14 +269,14 @@ let compile form =
 
       add_comment ctx (next_pc ctx) ("to else " ^ id);
       let to_else = ref (next_pc ctx) in
-      add_op_pop ctx (Branch_false to_else);
+      add_branch ctx false to_else;
 
       add_comment ctx (next_pc ctx) ("then " ^ id);
       f ctx then_;
 
       add_comment ctx (next_pc ctx) ("to end " ^ id);
       let to_end = ref (next_pc ctx) in
-      add_op ctx (Jump to_end);
+      add_jump ctx to_end;
 
       add_comment ctx (next_pc ctx) ("else " ^ id);
       to_else := next_pc ctx - !to_else;
@@ -380,12 +376,12 @@ let compile form =
       f ctx map;
       add_comment ctx (next_pc ctx) "get prop";
       f ctx name;
-      add_op_pop ctx Get_prop
+      add_op_pop ctx (Get_block_field None)
 
     | Get_field (ary, i) ->
-      add_comment ctx (next_pc ctx) "get field array";
+      add_comment ctx (next_pc ctx) (sprintf "get field at %d" i);
       f ctx ary;
-      add_op_pop ctx (Get_field i)
+      add_op_pop ctx (Get_block_field (Some i))
 
     | Get_bitstr (value, spec, pos) ->
       add_comment ctx (next_pc ctx) "get bitstr value";
@@ -431,43 +427,37 @@ let compile form =
 
     | Block (tag, exps) ->
       begin match exps with
-        | [] ->
-          add_op_push ctx (Load_empty tag)
-        | exp :: [] ->
-          begin match exp with
-            | Lambda_t.Bitstr bits ->
-              let bits = f_bits ctx bits in
-              let op = match bits.spec.endian with
-                | `Native ->
-                  Opcode_t.Load_native_bitstr (bits.size, bits.value)
-                | _ -> Load_bitstr (bits.size, bits.value)
-              in
-              add_op_push ctx op
-            | _ -> failwith "notimpl"
-          end
+        | (Lambda_t.Bitstr bits) :: [] ->
+          let bits = f_bits ctx bits in
+          let op = match bits.spec.endian with
+            | `Native ->
+              Opcode_t.Load_native_bitstr (bits.size, bits.value)
+            | _ -> Load_bitstr (bits.size, bits.value)
+          in
+          add_op_push ctx op
         | _ ->
           let blk = f_const_block ctx tag exps in
           add_load_const ctx (add_const ctx blk)
       end
 
-    | Make_block (tag, exps) ->
+    | Create_block (tag, exps) ->
       let id = Id.next meta "*block*" in
       List.iteri exps ~f:(fun i exp ->
           add_comment ctx (next_pc ctx) (sprintf "prepare %s[%d]" id i);
           f ctx exp);
       popn ctx (List.length exps);
       add_comment ctx (next_pc ctx) (sprintf "make %s" id);
-      add_op_push ctx (Make_block (tag, List.length exps))
+      add_op_push ctx (Create_block (tag, List.length exps))
 
     | Temp_block _ ->
       failwith "error"
 
-    | Make_bitstr bits ->
+    | Create_bitstr bits ->
       add_comment ctx (next_pc ctx) "bitstr value";
       f ctx bits.value;
       add_comment ctx (next_pc ctx) "bitstr size";
       f ctx bits.size;
-      add_op ctx (Make_bitstr bits.spec)
+      add_op ctx (Create_bitstr bits.spec)
 
     | No_match ->
       add_op_pop ctx No_match
@@ -484,14 +474,14 @@ let compile form =
     | List_sub (a, b) -> f_binexp ctx a b Opcode_t.List_sub
 
     | Block_size exp ->
-      add_comment ctx (next_pc ctx) "block size";
+      add_comment ctx (next_pc ctx) "get block size";
       f ctx exp;
-      add_op ctx Block_size
+      add_op ctx Get_block_size
 
     | Test_tuple exp ->
       add_comment ctx (next_pc ctx) "test tuple";
       f ctx exp;
-      add_op ctx Test_tuple
+      add_op ctx (Test_block Block_tag.Tuple)
 
     | Local name ->
       add_comment ctx (next_pc ctx) (sprintf "var $%s" name);
@@ -501,30 +491,21 @@ let compile form =
         | _ -> add_load_local ctx name
       end
 
-    | Bool true ->
-      add_op_push ctx Load_true
-
-    | Bool false ->
-      add_op_push ctx Load_false
-
-    | Undef ->
-      add_op_push ctx Load_undef
-
-    | Ok0 ->
-      add_op_push ctx Load_ok
+    | Bool b ->
+      add_op_push ctx (Load_bool b)
 
     | Ok exps ->
       f_exps ctx exps;
       popn ctx (List.length exps);
-      add_op_push ctx (Make_ok (List.length exps))
-
-    | Error0 ->
-      add_op_push ctx Load_error
+      add_op_push ctx (Load_ok (List.length exps))
 
     | Error exps ->
       f_exps ctx exps;
       popn ctx (List.length exps);
-      add_op_push ctx (Make_error (List.length exps))
+      add_op_push ctx (Load_error (List.length exps))
+
+    | Atom "undefined" ->
+      add_op_push ctx (Load_atom `Undef)
 
     | Atom name ->
       add_load_const ctx (add_atom ctx name)
@@ -553,10 +534,9 @@ let compile form =
       | Add -> "+"
       | Sub -> "-"
       | Rem -> "%"
-      | Block_size -> "block_size"
       | List_concat -> "++"
       | List_sub -> "--"
-      | _ -> failwith "notimpl"
+      | _ -> failwith "notimpl binop"
     in
     add_comment ctx (next_pc ctx) (sprintf "%s left" name);
     f ctx a;
@@ -567,7 +547,6 @@ let compile form =
   and f_const_block ctx tag exps =
     let f = function
       | Lambda_t.Bitstr bits -> Const_bits (f_bits ctx bits)
-      | Undef -> Const_atom "undefined"
       | Atom name -> Const_atom name
       | Int s -> Const_int s
       | Block (tag, exps) -> f_const_block ctx tag exps
@@ -592,7 +571,8 @@ let compile form =
       ~arity:0
       ~st_base:0 in
   f ctx form;
-  add_op ctx Return_undef;
+  add_op ctx (Load_atom `Undef);
+  add_op ctx Return;
 
   let m = match !mod_base with
     | None -> failwith "module not found"

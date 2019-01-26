@@ -4,6 +4,7 @@ type t =
   | Bitstr
   | List
   | Tuple
+  | Module
 
 let to_string = function
   | String -> "string"
@@ -11,6 +12,7 @@ let to_string = function
   | Bitstr -> "bitstr"
   | List -> "list"
   | Tuple -> "tuple"
+  | Module -> "module"
 
 let to_repr = function
   | String -> "String"
@@ -18,3 +20,4 @@ let to_repr = function
   | Bitstr -> "Bitstr"
   | List -> "List"
   | Tuple -> "Tuple"
+  | Module -> "Module"

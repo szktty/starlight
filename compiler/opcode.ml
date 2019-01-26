@@ -16,13 +16,11 @@ module Debug = struct
       | Load_local i -> sprintf "load local %d" i
       | Load_const i -> sprintf "load %s" (fmt.const i)
       | Load_int i -> sprintf "load %d" i
-      | Load_true -> "load true"
-      | Load_false -> "load false"
-      | Load_undef -> "load #undefined"
-      | Load_ok -> "load #ok"
-      | Load_error -> "load #error"
-      | Load_empty tag ->
-        sprintf "load empty %s" (Block_tag.to_string tag)
+      | Load_bool b -> sprintf "load %s" (Bool.to_string b)
+      | Load_atom `Undef -> "load #undefined"
+      | Load_atom `Nil -> "load #nil"
+      | Load_ok n -> sprintf "load #ok %d" n
+      | Load_error n -> sprintf "load #error %d" n
       | Load_pid -> "load pid"
       | Load_context -> "load context"
       | Load_self_fun -> "load self function"
@@ -31,37 +29,33 @@ module Debug = struct
       | Load_native_bitstr (size, value) ->
         sprintf "load <<%d:%d/native>>" value size
       | Store_pop_local i -> sprintf "store local %d; pop" i
-      | Get_field i -> sprintf "get field %d" i
-      | Get_prop -> "get property"
-      | Get_assoc i -> sprintf "get assoc %s" (fmt.const i)
       | Get_global -> "get global"
+      | Set_global -> "set global"
       | Get_bitstr spec ->
         sprintf "get <<%s>>" (Bitstr.Repr.spec_to_string spec)
-      | Set_field i -> sprintf "set field %d" i
-      | Set_global -> sprintf "set global"
       | Return -> "return"
-      | Return_true -> "return true"
-      | Return_false -> "return false"
-      | Return_ok -> "return #ok"
-      | Return_error -> "return #error"
-      | Return_undef -> "return #undefined"
       | Pop -> "pop"
       | No_match -> "no match"
       | Loophead -> "loophead"
       | Jump n -> sprintf "jump %d" (pc + !n)
-      | Branch_true n -> sprintf "branch true %d" (pc + !n)
-      | Branch_false n -> sprintf "branch false %d" (pc + !n)
+      | Branch (b, n) -> sprintf "branch %s %d" (Bool.to_string b) (pc + !n)
       | Throw -> "throw"
-      | Make_block (tag, size) ->
-        sprintf "make %s (%d)" (Block_tag.to_string tag) size
-      | Make_bitstr spec ->
-        sprintf "make bitstr <<%s>>" (Bitstr.Repr.spec_to_string spec)
-      | Make_fun (i, n) ->
-        sprintf "make function with %d at %d" i n
-      | Make_ok n -> sprintf "make #ok (%d)" n
-      | Make_error n -> sprintf "make #error (%d)" n
+      | Create_block (tag, size) ->
+        sprintf "create %s (%d)" (Block_tag.to_string tag) size
+      | Get_block_field (Some i) -> sprintf "get block field %d" i
+      | Get_block_field None -> "get block field"
+      | Set_block_field (Some i) -> sprintf "set block field %d" i
+      | Set_block_field None -> "set block field"
+      | Get_block_size -> "get block size"
+      | Test_block tag ->
+        sprintf "test %s" (Block_tag.to_string tag)
+      | Create_bitstr spec ->
+        sprintf "create bitstr <<%s>>" (Bitstr.Repr.spec_to_string spec)
+      | Create_clos (i, n) ->
+        sprintf "create %s/%d" (fmt.const i) n
       | Create_rec (i, n) -> sprintf "create record %s %d" (fmt.const i) n
       | Update_rec n -> sprintf "update record %d" n
+      | Get_rec_field i -> sprintf "get record field %s" (fmt.const i)
       | Apply nargs -> sprintf "apply %d" nargs
       | Spawn -> "spawn"
       | Not -> "not"
@@ -73,12 +67,10 @@ module Debug = struct
       | Sub -> "-"
       | Mul -> "*"
       | Rem -> "rem"
-      | Block_size -> "block size"
       | List_len -> "list length"
       | List_cons -> "construct list"
       | List_concat -> "++"
       | List_sub -> "--"
-      | Test_tuple -> "test tuple"
       | Test_nonnil -> "test non nil"
     in
     let align = 32 in
