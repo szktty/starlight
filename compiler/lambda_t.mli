@@ -21,14 +21,12 @@ type t =
   | Apply of t * t list (* fun, args *)
   | Spawn of t * t (* fun, args *)
   | Get_global of t (* key *)
-  | Get_prop of t * t (* load, key *)
-  | Get_field of t * int (* load, index *)
+  | Get_field of t * t (* load, index *)
   | Get_rec of t option * string * string (* load, record, field *)
   | Get_bitstr of t * Bitstr.spec * t (* value, spec, pos *)
   | Set_local of Id.t * t
   | Set_global of t * t (* key, value *)
   | Set_field of t * int * t (* load, index, store *)
-  | Set_prop of t * t * t (* load, key, store *)
   | Update_rec of update
   | Get_module
   | Not of t

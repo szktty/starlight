@@ -371,17 +371,16 @@ let compile form =
       f ctx name;
       add_op ctx Get_global
 
-    | Get_prop (map, name) ->
-      add_comment ctx (next_pc ctx) "get prop map";
-      f ctx map;
-      add_comment ctx (next_pc ctx) "get prop";
-      f ctx name;
-      add_op_pop ctx (Get_block_field None)
+    | Get_field (blk, Int i) ->
+      add_comment ctx (next_pc ctx) (sprintf "get field at %s" i);
+      f ctx blk;
+      add_op_pop ctx (Get_block_field (Some (Int.of_string i)))
 
-    | Get_field (ary, i) ->
-      add_comment ctx (next_pc ctx) (sprintf "get field at %d" i);
-      f ctx ary;
-      add_op_pop ctx (Get_block_field (Some i))
+    | Get_field (blk, i) ->
+      add_comment ctx (next_pc ctx) "get field";
+      f ctx blk;
+      f ctx i;
+      add_op_pop ctx (Get_block_field None)
 
     | Get_bitstr (value, spec, pos) ->
       add_comment ctx (next_pc ctx) "get bitstr value";

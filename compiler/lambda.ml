@@ -16,7 +16,7 @@ let g_mod name =
   Get_global (Atom name)
 
 let g_mod_prop mname fname =
-  Get_prop (g_mod mname, (Atom fname))
+  Get_field (g_mod mname, (Atom fname))
 
 let create_tuple elts =
   Create_block (Block_tag.Tuple, elts)
@@ -139,7 +139,7 @@ let rec from_node node =
       begin match fname0.fun_name_mname with
         | Some name ->
           let mname = Get_global (f name) in
-          let fobj = Get_prop (mname, f fname0.fun_name_fname) in
+          let fobj = Get_field (mname, f fname0.fun_name_fname) in
           ev_before
             (* TODO: function name loc *)
             (Location.union call.call_open call.call_close)
@@ -166,12 +166,12 @@ let rec from_node node =
             | Atom "spawn", [fn; args] ->
               Spawn (fn, args)
             | Atom "spawn", [mname; fname; args] ->
-              Spawn (Get_prop (Get_global mname, fname), args)
+              Spawn (Get_field (Get_global mname, fname), args)
             | Atom "spawn", _ ->
               failwith "spawn must takes 2-3 args"
             | fname, _ ->
               let fobj =
-                Get_prop
+                Get_field
                   (Get_global
                      (Atom (Option.value_exn !lmod.mod_name)), fname) in
               Apply (fobj, args)
@@ -357,11 +357,17 @@ let rec from_node node =
     | Tuple ptns ->
       let ptns = Seplist.values ptns.enc_desc in
       let len = List.length ptns in
-      let body = List.fold_right ptns
+      let body =
+        List.fold_right ptns
           ~init:(len - 1, action)
           ~f:(fun ptn (i, action) ->
-              i - 1, f_case ~exit ~value:(Get_field (value, i)) ~ptn ~action)
-                 |> Tuple2.get2
+              i - 1, f_case
+                ~exit
+                ~value:(Get_field (value,
+                                   Int (Int.to_string i)))
+                ~ptn
+                ~action)
+        |> Tuple2.get2
       in
       If (Not (Test_tuple value),
           Exit exit,
@@ -557,7 +563,7 @@ let rec from_node node =
             let case =
               f_case
                 ~exit
-                ~value:(Get_field (Local next_var, i)) 
+                ~value:(Get_field (Local next_var, Int (Int.to_string i)) )
                 ~ptn
                 ~action in
             i - 1, Catch (case, [(exit, Nop)]))

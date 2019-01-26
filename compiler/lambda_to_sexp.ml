@@ -83,10 +83,8 @@ let rec to_sexp = function
        Sexp.List (List.map elts ~f:to_sexp)]
   | Local name -> Sexp.Atom ("$" ^ name)
   | Get_module -> Sexp.Atom "getmodule"
-  | Get_prop (map, key) ->
-    Sexp.tagged "get_prop" [to_sexp map; to_sexp key]
   | Get_field (map, idx) ->
-    Sexp.tagged "get_field" [to_sexp map; Sexp.Atom (string_of_int idx)]
+    Sexp.tagged "get_field" [to_sexp map; to_sexp idx]
   | Get_global key ->
     Sexp.tagged "get_global" [to_sexp key]
   | Get_rec (exp, rname, fname) ->
