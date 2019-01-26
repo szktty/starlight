@@ -5,48 +5,47 @@ type t =
   | Load_local of int
   | Load_const of int
   | Load_int of int
-  | Load_true
-  | Load_false
-  | Load_undef
-  | Load_ok
-  | Load_error
-  | Load_empty of Block_tag.t
+  | Load_bool of bool
+  | Load_atom of [`Undef | `Nil]
+  | Load_ok of int
+  | Load_error of int
   | Load_pid
   | Load_context
   | Load_self_fun
-  | Load_bitstr of int * int (* size, value *)
-  | Load_native_bitstr of int * int (* size, value *)
   | Store_pop_local of int
 
-  | Get_field of int (* index *)
-  | Get_prop
-  | Get_assoc of int (* key index *)
   | Get_global
-  | Get_bitstr of Bitstr.spec
-  | Set_field of int
   | Set_global
 
   | Return
-  | Return_true
-  | Return_false
-  | Return_ok
-  | Return_error
-  | Return_undef
   | Pop
-
   | No_match
   | Loophead
   | Jump of int ref
-  | Branch_true of int ref
-  | Branch_false of int ref
+  | Branch of bool * int ref
   | Throw
-  | Make_block of Block_tag.t * int (* tag, size *)
-  | Make_bitstr of Bitstr.spec
-  | Make_fun of int * int (* function at constant *)
-  | Make_ok of int
-  | Make_error of int
+
+  | Create_block of Block_tag.t * int (* tag, size *)
+  | Get_block_field of int option (* index *)
+  | Set_block_field of int option
+  | Get_block_size
+  | Test_block of Block_tag.t 
+
+  | Create_bitstr of Bitstr.spec
+  | Load_bitstr of int * int (* size, value *)
+  | Load_native_bitstr of int * int (* size, value *)
+  | Get_bitstr of Bitstr.spec
+
+  | Create_clos of int * int (* function at constant *)
+
   | Create_rec of int * int (* record name, field count *)
   | Update_rec of int (* field count *)
+  | Get_rec_field of int (* field name index *)
+
+  | List_len
+  | List_cons
+  | List_concat
+  | List_sub
 
   | Apply of int
   | Spawn
@@ -59,11 +58,5 @@ type t =
   | Sub
   | Mul
   | Rem
-  | Block_size
-  | List_len
-  | List_cons
-  | List_concat
-  | List_sub
 
-  | Test_tuple
   | Test_nonnil

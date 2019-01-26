@@ -16,10 +16,10 @@ let g_mod name =
   Get_global (Atom name)
 
 let g_mod_prop mname fname =
-  Get_prop (g_mod mname, (Atom fname))
+  Get_field (g_mod mname, (Atom fname))
 
-let make_tuple elts =
-  Make_block (Block_tag.Tuple, elts)
+let create_tuple elts =
+  Create_block (Block_tag.Tuple, elts)
 
 let tuple elts =
   Block (Block_tag.Tuple, elts)
@@ -102,10 +102,10 @@ let rec from_node node =
         List.fold_left (List.rev funs)
           ~init:([], [])
           ~f:(fun (binds, funs) (name, id, decl) ->
-              (id, decl) :: binds, make_tuple [Atom name; Local id] :: funs)
+              (id, decl) :: binds, create_tuple [Atom name; Local id] :: funs)
       in
       let attrs_block = Block (Block_tag.Tuple, List.rev attrs) in
-      let funs_block = Make_block (Block_tag.Tuple, List.rev funs) in
+      let funs_block = create_tuple (List.rev funs) in
       let args = [attrs_block; funs_block] in
 
       (* create module *)
@@ -139,7 +139,7 @@ let rec from_node node =
       begin match fname0.fun_name_mname with
         | Some name ->
           let mname = Get_global (f name) in
-          let fobj = Get_prop (mname, f fname0.fun_name_fname) in
+          let fobj = Get_field (mname, f fname0.fun_name_fname) in
           ev_before
             (* TODO: function name loc *)
             (Location.union call.call_open call.call_close)
@@ -166,12 +166,12 @@ let rec from_node node =
             | Atom "spawn", [fn; args] ->
               Spawn (fn, args)
             | Atom "spawn", [mname; fname; args] ->
-              Spawn (Get_prop (Get_global mname, fname), args)
+              Spawn (Get_field (Get_global mname, fname), args)
             | Atom "spawn", _ ->
               failwith "spawn must takes 2-3 args"
             | fname, _ ->
               let fobj =
-                Get_prop
+                Get_field
                   (Get_global
                      (Atom (Option.value_exn !lmod.mod_name)), fname) in
               Apply (fobj, args)
@@ -227,11 +227,8 @@ let rec from_node node =
 
     | Atom atom ->
       begin match (Ast.text_of_atom atom).desc with
-        | "undefined" -> Undef
         | "true" -> Bool true
         | "false" -> Bool false
-        | "ok" -> Ok0
-        | "error" -> Error0
         | name -> Atom name
       end
 
@@ -247,8 +244,8 @@ let rec from_node node =
 
     | List list ->
       let head = List.fold_right (Seplist.values list.list_head)
-          ~init:(make_block Block_tag.List [])
-          ~f:(fun exp tail -> make_block Block_tag.List [f exp; tail])
+          ~init:(create_block Block_tag.List [])
+          ~f:(fun exp tail -> create_block Block_tag.List [f exp; tail])
       in
       begin match list.list_tail with
         | None -> head
@@ -259,18 +256,12 @@ let rec from_node node =
       f_list_compr com
 
     | Tuple exps ->
-      let exps = Seplist.values exps.enc_desc
-                 |> List.map ~f in
-      begin match exps with
-        | [Ok0] -> Ok []
-        | [Error0] -> Error []
-        | Ok0 :: exps -> Ok exps
-        | Error0 :: exps -> Error exps
-        | _ -> make_block Block_tag.Tuple exps
-      end
+      Seplist.values exps.enc_desc
+      |> List.map ~f
+      |> create_block Block_tag.Tuple
 
     | Binary elts ->
-      make_block Block_tag.Binary (List.map (Seplist.values elts.enc_desc) ~f)
+      create_block Block_tag.Binary (List.map (Seplist.values elts.enc_desc) ~f)
 
     | Binary_elt elt ->
       Temp_bitstr (f_binelt elt)
@@ -279,7 +270,8 @@ let rec from_node node =
 
   and f_rec_attr attr =
     let f_field (field : Ast_t.type_field) =
-      let init = Option.value_map field.ty_field_init ~default:Undef ~f in
+      let init = Option.value_map field.ty_field_init
+          ~default:(Atom "undefined") ~f in
       tuple [
         tuple [Atom "name"; Atom field.ty_field_name.desc];
         tuple [Atom "init"; init]
@@ -365,11 +357,17 @@ let rec from_node node =
     | Tuple ptns ->
       let ptns = Seplist.values ptns.enc_desc in
       let len = List.length ptns in
-      let body = List.fold_right ptns
+      let body =
+        List.fold_right ptns
           ~init:(len - 1, action)
           ~f:(fun ptn (i, action) ->
-              i - 1, f_case ~exit ~value:(Get_field (value, i)) ~ptn ~action)
-                 |> Tuple2.get2
+              i - 1, f_case
+                ~exit
+                ~value:(Get_field (value,
+                                   Int (Int.to_string i)))
+                ~ptn
+                ~action)
+        |> Tuple2.get2
       in
       If (Not (Test_tuple value),
           Exit exit,
@@ -544,8 +542,7 @@ let rec from_node node =
     let collect_fun = g_mod_prop genlists_mname "collect" in
 
     let gen_exps = List.map cgens ~f:(fun (_, exp) -> exp) in
-    let l_gen = Apply (gen_fun,
-                       [Make_block (Block_tag.Tuple, gen_exps)]) in
+    let l_gen = Apply (gen_fun, [create_tuple gen_exps]) in
     let gen_var = Id.next gen "*listgen*" in
 
     (* body *)
@@ -566,7 +563,7 @@ let rec from_node node =
             let case =
               f_case
                 ~exit
-                ~value:(Get_field (Local next_var, i)) 
+                ~value:(Get_field (Local next_var, Int (Int.to_string i)) )
                 ~ptn
                 ~action in
             i - 1, Catch (case, [(exit, Nop)]))
@@ -640,7 +637,7 @@ let rec from_node node =
     | Nop -> exp1
     | _ -> Seq (exp1, exp2)
 
-  and make_block tag elts =
+  and create_block tag elts =
     let rec check lit elt =
       match lit, elt with
       | _, Int _ -> lit, elt
@@ -648,17 +645,17 @@ let rec from_node node =
       | _, Temp_block (tag, elts) ->
         begin match check_list lit elts with
           | true, elts -> true, Block (tag, elts)
-          | false, elts -> false, Make_block (tag, elts)
+          | false, elts -> false, Create_block (tag, elts)
         end
       | _, Temp_bitstr bits ->
         begin match check lit bits.value with
           | true, _ -> true, Bitstr bits
-          | false, _ -> false, Make_bitstr bits
+          | false, _ -> false, Create_bitstr bits
         end
       | true, Bitstr _ -> true, elt
-      | false, Bitstr bits -> false, Make_bitstr bits
+      | false, Bitstr bits -> false, Create_bitstr bits
       | true, Block _ -> true, elt
-      | false, Block (tag, elts) -> false, Make_block (tag, elts)
+      | false, Block (tag, elts) -> false, Create_block (tag, elts)
       | _ -> false, elt
 
     and check_list lit elts =
@@ -671,7 +668,7 @@ let rec from_node node =
 
     match check_list true elts with
     | true, elts -> Block (tag, elts)
-    | false, elts -> Make_block (tag, elts)
+    | false, elts -> Create_block (tag, elts)
 
   in
   f node
