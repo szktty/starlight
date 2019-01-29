@@ -199,8 +199,7 @@ let rec from_node node =
     | Binexp exp ->
       begin match exp.binexp_op.desc with
         | Op_eq ->
-          (* TODO *)
-          Nop
+          failwith (sprintf "notimpl binexp %s" (Ast.to_string node))
 
         | op ->
           let l = f exp.binexp_left in
@@ -297,7 +296,7 @@ let rec from_node node =
     | Binary_elt elt ->
       Temp_bitstr (f_binelt elt)
 
-    | _ -> Nop
+    | _ -> failwith (sprintf "notimpl %s" (Ast.to_string node))
 
   and f_rec_attr attr =
     let f_field (field : Ast_t.type_field) =
