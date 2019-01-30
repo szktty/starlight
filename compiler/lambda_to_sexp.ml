@@ -46,6 +46,11 @@ let rec to_sexp = function
       Sexp.Atom (Option.value name ~default:"<none>");
       Sexp.List (List.map params ~f:(fun id -> Sexp.Atom id));
       to_sexp body]
+  | Clos (name, params, body) ->
+    Sexp.tagged "clos" [
+      Sexp.Atom (Option.value name ~default:"<none>");
+      Sexp.List (List.map params ~f:(fun id -> Sexp.Atom id));
+      to_sexp body]
   | Fun_sig (name, arity) ->
     Sexp.tagged "fun_sig" [Sexp.Atom name; Sexp.Atom (Int.to_string arity)]
   | Seq (exp1, exp2) ->

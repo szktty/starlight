@@ -106,7 +106,10 @@ let rec from_node node =
                     records = List.rev !record_desc };
       Module.add !mod_desc;
 
-      let funs = List.rev_map fdecls ~f:f_decl in
+      (* parse function declarations *)
+      let funs = List.rev_map fdecls
+          ~f:(fun decl ->
+              f_fun_body `Fun decl.fun_decl_body decl.fun_decl_dot.end_) in
 
       (* args *)
       let attrs =
@@ -119,8 +122,11 @@ let rec from_node node =
       let binds, funs =
         List.fold_left (List.rev funs)
           ~init:([], [])
-          ~f:(fun (binds, funs) (name, id, decl) ->
-              (id, decl) :: binds, create_tuple [Atom name; Local id] :: funs)
+          ~f:(fun (binds, funs) (name_opt, decl) ->
+              let name = Option.value_exn name_opt in
+              let id = Id.next gen name in
+              (id, decl) :: binds,
+              create_tuple [Atom name; Local id] :: funs)
       in
       let attrs_block = Block (Block_tag.Tuple, List.rev attrs) in
       let funs_block = create_tuple (List.rev funs) in
@@ -296,7 +302,11 @@ let rec from_node node =
     | Binary_elt elt ->
       Temp_bitstr (f_binelt elt)
 
-    | _ -> failwith (sprintf "notimpl %s" (Ast.to_string node))
+    | Anon_fun fn ->
+      let _, body = f_fun_body `Anon_fun fn.anon_fun_body fn.anon_fun_end.end_ in
+      body
+
+    | node -> failwith (sprintf "notimpl %s" (Ast.to_string node))
 
   and f_rec_attr attr =
     let f_field (field : Ast_t.type_field) =
@@ -618,10 +628,10 @@ let rec from_node node =
     Let ([(gen_var, l_gen)],
          Seq (l_loop_body, Apply (collect_fun, [Local gen_var])))
 
-  and f_decl decl : (string * Id.t * t) =
-    let claus = Seplist.values decl.fun_decl_body in
+  and f_fun_body ty body end_pos : (string option * t) =
+    let claus = Seplist.values body in
     let head = List.hd_exn claus in
-    let name = Option.value_exn head.fun_clause_name in
+    let name = Option.map head.fun_clause_name ~f:Located.desc in
 
     (* parameters *)
     let params = List.map
@@ -656,16 +666,19 @@ let rec from_node node =
 
     (* position *)
     let fst = List.hd_exn claus in
-    let start = Option.value_map fst.fun_clause_name
+    let start_pos = Option.value_map fst.fun_clause_name
         ~default:fst.fun_clause_open.start
         ~f:(fun name -> name.loc.start) in
+    let loc = Location.create start_pos end_pos in
     let ev = ev_fun
-        (Location.create start decl.fun_decl_dot.end_)
+        loc
         (ev_before
-           name.loc
-           (Fun (Some name.desc, params, body)))
+           loc
+           (match ty with
+            | `Fun -> Fun (name, params, body)
+            | `Anon_fun -> Clos (name, params, body)))
     in
-    (name.desc, Id.next gen name.desc, ev)
+    (name, ev)
 
   and seq exp1 exp2 = 
     match exp2 with

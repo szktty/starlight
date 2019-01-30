@@ -325,22 +325,12 @@ let compile form =
       f ctx exp2
 
     | Fun (name, params, body) ->
-      let id = Option.map name ~f:(fun name -> Id.next meta name) in
-      let ctx2 = create
-          ~name:id
-          ~arity:(List.length params)
-          ~st_base:ctx.st_top in
-
-      (* outer variables + arguments *)
-      let locals = List.append (Context.vars ctx) params in
-      List.iter locals ~f:(fun name -> def_var ctx2 name);
-
-      (* store arguments on operand stack in local variables *)
-      List.iter params ~f:(fun name -> add_store_local ctx2 name);
-
-      f ctx2 body;
-      add_op ctx2 Return;
+      let ctx2 = f_fun_body ctx name params body in
       add_load_const ctx (add_const ctx (Const_fun ctx2))
+
+    | Clos (name, params, body) ->
+      let ctx2 = f_fun_body ctx name params body in
+      add_op_push ctx (Clos (add_const ctx (Const_fun ctx2)))
 
     | Apply (fn, args) ->
       let id = Id.next meta "*apply*" in
@@ -521,6 +511,24 @@ let compile form =
 
     | op ->
       failwith (sprintf "notimpl %s\n" (Lambda.to_string op))
+
+  and f_fun_body ctx name params body =
+    let id = Option.map name ~f:(fun name -> Id.next meta name) in
+    let ctx2 = create
+        ~name:id
+        ~arity:(List.length params)
+        ~st_base:ctx.st_top in
+
+    (* outer variables + arguments *)
+    let locals = List.append (Context.vars ctx) params in
+    List.iter locals ~f:(fun name -> def_var ctx2 name);
+
+    (* store arguments on operand stack in local variables *)
+    List.iter params ~f:(fun name -> add_store_local ctx2 name);
+
+    f ctx2 body;
+    add_op ctx2 Return;
+    ctx2
 
   and f_exps ctx exps =
     List.iter exps ~f:(f ctx)

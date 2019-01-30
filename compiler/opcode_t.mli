@@ -36,7 +36,7 @@ type t =
   | Load_native_bitstr of int * int (* size, value *)
   | Get_bitstr of Bitstr.spec
 
-  | Create_clos of int * int (* function at constant *)
+  | Clos of int (* function at constant *)
 
   | Create_rec of int * int (* record name, field count *)
   | Update_rec of int (* field count *)

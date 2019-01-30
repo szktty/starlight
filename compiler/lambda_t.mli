@@ -7,6 +7,7 @@ type t =
   | Let of binding list * t
   | Seq of t * t (* exp1, exp2 *)
   | Fun of string option * Id.t list * t (* name, params, body *)
+  | Clos of string option * Id.t list * t (* name, params, body *)
   | Fun_sig of string * int (* name, arity *)
   | Fun_body
   | If of t * t * t (* cond, true, false *)

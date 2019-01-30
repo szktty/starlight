@@ -122,6 +122,8 @@ module Code = struct
       | Get_block_size -> `String "GetBlockSize"
       | Test_block tag ->
         tagged "TestBlock" [`String (Block_tag.to_repr tag)]
+      | Clos i ->
+        tagged "Closure" [`Int i]
       | Create_bitstr spec ->
         tagged "CreateBitstr" (bits_spec_json spec)
       | Create_rec (i, n) ->

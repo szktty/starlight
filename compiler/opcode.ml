@@ -51,8 +51,8 @@ module Debug = struct
         sprintf "test %s" (Block_tag.to_string tag)
       | Create_bitstr spec ->
         sprintf "create bitstr <<%s>>" (Bitstr.Repr.spec_to_string spec)
-      | Create_clos (i, n) ->
-        sprintf "create %s/%d" (fmt.const i) n
+      | Clos i ->
+        sprintf "closure %s" (fmt.const i)
       | Create_rec (i, n) -> sprintf "create record %s %d" (fmt.const i) n
       | Update_rec n -> sprintf "update record %d" n
       | Get_rec_field i -> sprintf "get record field %s" (fmt.const i)
