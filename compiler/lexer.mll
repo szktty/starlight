@@ -158,7 +158,6 @@ rule read =
   | attr "else" { ELSE_ATTR (to_word lexbuf) }
   | attr "endif" { ENDIF_ATTR (to_word lexbuf) }
   | attr "vsn" { VSN_ATTR (to_word lexbuf) }
-  | attr lower { USER_ATTR (to_word lexbuf) }
   | _       { raise (Syntax_error (start_pos lexbuf, "Unexpected char: " ^ Lexing.lexeme lexbuf)) }
   | eof     { EOF (to_loc lexbuf) }
 
