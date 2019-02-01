@@ -12,3 +12,8 @@ let unpack_foldr list ~init ~f =
   let e, es = unpack_exn list in
   List.fold_right es ~init:(init e) ~f
 
+let empty_map list ~default ~f =
+  match list with
+  | [] -> default
+  | es -> f es
+
