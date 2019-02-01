@@ -13,6 +13,8 @@ let rec to_sexp = function
     Sexp.tagged "modname" [Sexp.Atom attr.modname_attr_name.desc]
   | Author_attr attr ->
     Sexp.tagged "author" [Sexp.Atom attr.auth_attr_name.desc]
+  | Behav_attr attr ->
+    Sexp.tagged "behav" [Sexp.Atom attr.behav_attr_name.desc]
   | Export_attr attr ->
     Sexp.tagged "export"
       (List.map (Seplist.values attr.export_attr_funs)

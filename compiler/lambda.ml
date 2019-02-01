@@ -34,6 +34,7 @@ let rec from_node node =
   let lmod = ref {
       mod_name = None;
       mod_authors = [];
+      mod_behav = None;
       mod_exports = [];
       mod_code = Nop;
     } in
@@ -60,6 +61,11 @@ let rec from_node node =
                 let name = attr.auth_attr_name.desc in
                 lmod := { !lmod with mod_authors = name :: !lmod.mod_authors };
                 ("author", Atom name) :: attrs, fdecls
+
+              | Behav_attr attr ->
+                let name = attr.behav_attr_name.desc in
+                lmod := { !lmod with mod_behav = Some name };
+                ("behav", Atom name) :: attrs, fdecls
 
               | Export_attr attr ->
                 let sigs = List.map

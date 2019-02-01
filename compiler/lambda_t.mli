@@ -95,6 +95,7 @@ and event_kind =
 and module_ = {
   mod_name : string option;
   mod_authors : string list;
+  mod_behav : string option;
   mod_exports : (string * int) list;
   mod_code : t;
 }

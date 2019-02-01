@@ -23,17 +23,21 @@ let rec to_sexp = function
     let attr name value =
       Sexp.List [Sexp.Atom name; value]
     in
-    Sexp.tagged "module" [
-      attr "name" (Sexp.Atom (Option.value_exn m.mod_name));
-      attr "authors"
-        (Sexp.List (List.map m.mod_authors
-                      ~f:(fun auth -> Sexp.Atom auth)));
-      attr "exports"
-        (Sexp.List (List.map m.mod_exports
-                      ~f:(fun (name, arity) ->
-                          Sexp.Atom (sprintf "%s/%d" name arity))));
-      to_sexp m.mod_code
-    ]
+    Sexp.tagged "module"
+      (List.concat [
+          [attr "name" (Sexp.Atom (Option.value_exn m.mod_name))];
+          [attr "authors"
+             (Sexp.List (List.map m.mod_authors
+                           ~f:(fun auth -> Sexp.Atom auth)))];
+          Option.value_map m.mod_behav
+            ~default:[]
+            ~f:(fun name -> [attr "behav" (Sexp.Atom name)]);
+          [attr "exports"
+             (Sexp.List (List.map m.mod_exports
+                           ~f:(fun (name, arity) ->
+                               Sexp.Atom (sprintf "%s/%d" name arity))))];
+          [to_sexp m.mod_code]
+        ])
   | Let (binds, exp) ->
     let binds1 =
       List.map binds
