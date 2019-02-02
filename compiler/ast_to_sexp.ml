@@ -40,6 +40,16 @@ let rec to_sexp = function
     Sexp.tagged "case" [to_sexp case.case_exp;
                         (cr_claus_to_sexp
                            (Seplist.values case.case_clauses))]
+  | Try try_ ->
+    spair "try" (sconcat [
+        Some (to_sexp try_.try_exps);
+        Option.map try_.try_clauses
+          ~f:(fun claus ->
+              spair "case" (cr_claus_to_sexp (extract claus)));
+        Option.map try_.try_catch.try_catch_clauses
+          ~f:(fun claus ->
+              spair "try-catch" (try_claus_to_sexp (extract claus)))
+      ])
   | Recv recv ->
     Sexp.List [Sexp.Atom "receive";
                cr_claus_to_sexp (Seplist.values recv.recv_clauses);
@@ -170,6 +180,19 @@ and cr_claus_to_sexp claus =
                       Sexp.List (guard_opt_to_sexp clau.cr_clause_guard);
                       to_sexp clau.cr_clause_body]))
 
+and try_claus_to_sexp claus =
+  slist
+    (List.map claus
+       ~f:(fun clau ->
+           sconcat [Some (spair "class" (to_sexp clau.try_clause_cls));
+                    Option.map clau.try_clause_exn
+                      ~f:(fun (_, exp) -> spair "exn" (to_sexp exp));
+                    Option.map clau.try_clause_stack
+                      ~f:(fun (_, exp) -> spair "stack" (to_sexp exp));
+                    Option.map clau.try_clause_guard
+                      ~f:(fun (_, ptn) -> guard_to_sexp ptn);
+                    Some (to_sexp clau.try_clause_body)]))
+
 and guard_opt_to_sexp guard_opt =
   Option.value_map guard_opt
     ~default:[]
@@ -183,10 +206,12 @@ and guard_to_sexp guard =
       exps_to_sexp (Seplist.values exps)
         ~f:(fun a b -> Sexp.tagged "and" [a; b])
     in
-    List.fold_right exps_tl
-      ~init:(f_and exps)
-      ~f:(fun exps accu ->
-          Sexp.tagged "or" [f_and exps; accu])
+    let exp = List.fold_right exps_tl
+        ~init:(f_and exps)
+        ~f:(fun exps accu ->
+            Sexp.tagged "or" [f_and exps; accu])
+    in
+    spair "guard" exp
 
 and exps_to_sexp (exps : t list) ~f =
   match exps with

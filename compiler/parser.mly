@@ -1646,30 +1646,50 @@ rev_try_clauses:
 
 try_clause:
   | primary_exp RARROW body
-  { { Ast_t.try_clause_exn = None;
-        try_clause_exp = $1;
+  { { Ast_t.try_clause_cls = $1;
+        try_clause_exn = None;
+        try_clause_stack = None;
         try_clause_guard = None;
         try_clause_arrow = $2;
         try_clause_body = $3; }
   }
   | primary_exp WHEN guard RARROW body
-  { { Ast_t.try_clause_exn = None;
-        try_clause_exp = $1;
+  { { Ast_t.try_clause_cls = $1;
+        try_clause_exn = None;
+        try_clause_stack = None;
         try_clause_guard = Some ($2, $3);
         try_clause_arrow = $4;
         try_clause_body = $5; }
   }
-  | raw_atom COLON exp RARROW body
-  { { Ast_t.try_clause_exn = Some ($1, $2);
-        try_clause_exp = $3;
+  | primary_exp COLON primary_exp RARROW body
+  { { Ast_t.try_clause_cls = $1;
+        try_clause_exn = Some ($2, $3);
+        try_clause_stack = None;
         try_clause_guard = None;
         try_clause_arrow = $4;
         try_clause_body = $5; }
   }
-  | raw_atom COLON exp WHEN guard RARROW body
-  { { Ast_t.try_clause_exn = Some ($1, $2);
-        try_clause_exp = $3;
+  | primary_exp COLON primary_exp WHEN guard RARROW body
+  { { Ast_t.try_clause_cls = $1;
+        try_clause_exn = Some ($2, $3);
+        try_clause_stack = None;
         try_clause_guard = Some ($4, $5);
         try_clause_arrow = $6;
         try_clause_body = $7; }
+  }
+  | primary_exp COLON primary_exp COLON primary_exp RARROW body
+  { { Ast_t.try_clause_cls = $1;
+        try_clause_exn = Some ($2, $3);
+        try_clause_stack = Some ($4, $5);
+        try_clause_guard = None;
+        try_clause_arrow = $6;
+        try_clause_body = $7; }
+  }
+  | primary_exp COLON primary_exp COLON primary_exp WHEN guard RARROW body
+  { { Ast_t.try_clause_cls = $1;
+        try_clause_exn = Some ($2, $3);
+        try_clause_stack = Some ($4, $5);
+        try_clause_guard = Some ($6, $7);
+        try_clause_arrow = $8;
+        try_clause_body = $9; }
   }

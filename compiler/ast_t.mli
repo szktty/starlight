@@ -389,8 +389,9 @@ and try_catch_after = {
 }
 
 and try_clause = {
-  try_clause_exn : (atom * token) option;
-  try_clause_exp : t;
+  try_clause_cls : t;
+  try_clause_exn : (token * t) option;
+  try_clause_stack : (token * t) option;
   try_clause_guard : (token * guard) option;
   try_clause_arrow : token;
   try_clause_body : t;
