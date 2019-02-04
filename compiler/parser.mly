@@ -27,6 +27,7 @@ let paren open_ value close =
 %token <Ast_t.text> CALLBACK_ATTR    (* "-callback" *)
 %token <Ast_t.text> COMPILE_ATTR     (* "-compile" *)
 %token <Ast_t.text> DEFINE_ATTR      (* "-define" *)
+%token <Ast_t.text> DEPR_ATTR        (* "-deprecated" *)
 %token <Ast_t.text> EXPORT_ATTR      (* "-export" *)
 %token <Ast_t.text> EXPORT_TYPE_ATTR (* "-export_type" *)
 %token <Ast_t.text> IMPORT_ATTR      (* "-import" *)
@@ -154,6 +155,7 @@ module_attr:
   | include_attr { $1 }
   | include_lib_attr { $1 }
   | define_attr { $1 }
+  | depr_attr { $1 }
   | spec_attr { $1 }
   | type_attr { $1 }
   | onload_attr { $1 }
@@ -318,6 +320,17 @@ rev_define_args:
 define_arg:
   | UIDENT { $1 }
   | ATOM { $1 }
+
+depr_attr:
+  | DEPR_ATTR LPAREN list_skel RPAREN DOT
+  { Ast_t.Depr_attr {
+      depr_attr_tag = $1;
+      depr_attr_open = $2;
+      depr_attr_list = $3;
+      depr_attr_close = $4;
+      depr_attr_dot = $5;
+    }
+  }
 
 spec_attr:
   | SPEC_ATTR LIDENT spec_clauses DOT

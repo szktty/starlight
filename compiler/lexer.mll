@@ -138,6 +138,7 @@ rule read =
   | attr "module" { MODULE_ATTR (to_word lexbuf) }
   | attr "author" { AUTHOR_ATTR (to_word lexbuf) }
   | attr "compile" { COMPILE_ATTR (to_word lexbuf) }
+  | attr "deprecated" { DEPR_ATTR (to_word lexbuf) }
   | attr "export" { EXPORT_ATTR (to_word lexbuf) }
   | attr "export_type" { EXPORT_TYPE_ATTR (to_word lexbuf) }
   | attr "import" { IMPORT_ATTR (to_word lexbuf) }

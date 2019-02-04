@@ -73,6 +73,7 @@ type t =
   | Opaque_attr of type_attr
   | Opt_cbs_attr of opt_cbs_attr
   | Define_attr of define_attr
+  | Depr_attr of depr_attr
   | Behav_attr of behav_attr
   | Callback_attr of callback_attr
   | Record_attr of record_attr
@@ -256,6 +257,14 @@ and define_attr = {
 and define_name = {
   def_name : text;
   def_args : text_list enclosed option;
+}
+
+and depr_attr = {
+  depr_attr_tag : text;
+  depr_attr_open : token;
+  depr_attr_list : t;
+  depr_attr_close : token;
+  depr_attr_dot : token;
 }
 
 and behav_attr = {

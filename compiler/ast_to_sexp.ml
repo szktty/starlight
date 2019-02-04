@@ -26,6 +26,8 @@ let rec to_sexp = function
                 extract args.enc_desc
                 |> List.map ~f:(fun arg -> Sexp.Atom arg.desc)));
        to_sexp attr.def_attr_value]
+  | Depr_attr attr ->
+    Sexp.tagged "depr-attr" [to_sexp attr.depr_attr_list]
   | Export_attr attr ->
     Sexp.tagged "export-attr"
       (List.map (Seplist.values attr.export_attr_funs)

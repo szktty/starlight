@@ -62,6 +62,7 @@ let rec start_pos node =
   | Opaque_attr attr -> of_text attr.type_attr_tag
   | Opt_cbs_attr attr -> of_text attr.opt_attr_tag
   | Define_attr attr -> of_text attr.def_attr_tag
+  | Depr_attr attr -> of_text attr.depr_attr_tag
   | Behav_attr attr -> of_text attr.behav_attr_tag
   | Callback_attr attr -> of_text attr.cb_attr_tag
   | Record_attr attr -> of_text attr.rec_attr_tag
@@ -152,6 +153,7 @@ let rec end_pos node =
   | Opaque_attr attr -> attr.type_attr_dot.end_
   | Opt_cbs_attr attr -> attr.opt_attr_dot.end_
   | Define_attr attr -> attr.def_attr_dot.end_
+  | Depr_attr attr -> attr.depr_attr_dot.end_
   | Behav_attr attr -> attr.behav_attr_dot.end_
   | Callback_attr attr -> attr.cb_attr_dot.end_
   | Record_attr attr -> attr.rec_attr_dot.end_
