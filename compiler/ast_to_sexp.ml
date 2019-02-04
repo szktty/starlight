@@ -10,13 +10,13 @@ let rec to_sexp = function
   | Module m ->
     Sexp.tagged "module" (to_sexp_list m.module_decls)
   | Modname_attr attr ->
-    Sexp.tagged "modname" [Sexp.Atom attr.modname_attr_name.desc]
+    Sexp.tagged "module-attr" [Sexp.Atom attr.modname_attr_name.desc]
   | Author_attr attr ->
-    Sexp.tagged "author" [Sexp.Atom attr.auth_attr_name.desc]
+    Sexp.tagged "author-attr" [Sexp.Atom attr.auth_attr_name.desc]
   | Behav_attr attr ->
-    Sexp.tagged "behav" [Sexp.Atom attr.behav_attr_name.desc]
+    Sexp.tagged "behav-attr" [Sexp.Atom attr.behav_attr_name.desc]
   | Export_attr attr ->
-    Sexp.tagged "export"
+    Sexp.tagged "export-attr"
       (List.map (Seplist.values attr.export_attr_funs)
          ~f:(fun fsig -> Sexp.List [Sexp.Atom fsig.fun_sig_name.desc;
                                     Sexp.Atom fsig.fun_sig_arity.desc]))
