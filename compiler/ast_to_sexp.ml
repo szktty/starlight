@@ -33,7 +33,8 @@ let rec to_sexp = function
               in
               Sexp.List [Sexp.Atom name; init])
     in
-    Sexp.tagged "record" [Sexp.Atom attr.rec_attr_name.desc; Sexp.List fields]
+    Sexp.tagged "record-attr"
+      [Sexp.Atom attr.rec_attr_name.desc; Sexp.List fields]
   | Fun_decl decl ->
     Sexp.tagged "fun_decl" (sexp_fun_body decl.fun_decl_body)
   | Case case ->
