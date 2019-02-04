@@ -15,11 +15,35 @@ let rec to_sexp = function
     Sexp.tagged "author-attr" [Sexp.Atom attr.auth_attr_name.desc]
   | Behav_attr attr ->
     Sexp.tagged "behav-attr" [Sexp.Atom attr.behav_attr_name.desc]
+  | Define_attr attr ->
+    let name = attr.def_attr_name in
+    Sexp.tagged "define-attr"
+      [Sexp.Atom name.def_name.desc;
+       Sexp.List
+         (Option.value_map name.def_args
+            ~default:[]
+            ~f:(fun args ->
+                extract args.enc_desc
+                |> List.map ~f:(fun arg -> Sexp.Atom arg.desc)));
+       to_sexp attr.def_attr_value]
   | Export_attr attr ->
     Sexp.tagged "export-attr"
       (List.map (Seplist.values attr.export_attr_funs)
          ~f:(fun fsig -> Sexp.List [Sexp.Atom fsig.fun_sig_name.desc;
                                     Sexp.Atom fsig.fun_sig_arity.desc]))
+  | Flow_macro_attr attr ->
+    let tag = match attr.flow_macro_attr_tag_type with
+      | `Undef -> "undef-attr"
+      | `Ifdef -> "ifdef-attr"
+      | `Ifndef -> "ifndef-attr"
+    in
+    Sexp.tagged tag [Sexp.Atom attr.flow_macro_attr_macro.desc]
+  | Flow_attr attr ->
+    Sexp.Atom (match attr.flow_attr_tag_type with
+        | `Else -> "else-attr"
+        | `Endif -> "endif-attr")
+  | Include_attr attr ->
+    Sexp.tagged "include-attr" [Sexp.Atom attr.include_attr_file.desc]
   | Record_attr attr ->
     let fields = match attr.rec_attr_fields with
       | None -> []
