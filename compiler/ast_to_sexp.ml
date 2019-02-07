@@ -15,6 +15,8 @@ let rec to_sexp = function
     Sexp.tagged "author-attr" [Sexp.Atom attr.auth_attr_name.desc]
   | Behav_attr attr ->
     Sexp.tagged "behav-attr" [Sexp.Atom attr.behav_attr_name.desc]
+  | Compile_attr attr ->
+    Sexp.tagged "compile-attr" [to_sexp attr.compile_attr_value]
   | Define_attr attr ->
     let name = attr.def_attr_name in
     Sexp.tagged "define-attr"

@@ -147,9 +147,7 @@ and modname_attr = {
 and compile_attr = {
   compile_attr_tag : text;
   compile_attr_open : token;
-  compile_attr_name_open : token;
-  compile_attr_names : atom node_list;
-  compile_attr_name_close : token;
+  compile_attr_value : t;
   compile_attr_close : token;
   compile_attr_dot : token;
 }

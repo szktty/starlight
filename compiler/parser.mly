@@ -191,15 +191,13 @@ author_attr:
   }
 
 compile_attr:
-  | COMPILE_ATTR LPAREN LBRACK raw_atoms RBRACK RPAREN DOT
+  | COMPILE_ATTR LPAREN exp RPAREN DOT
   { Ast_t.Compile_attr {
       compile_attr_tag = $1;
       compile_attr_open = $2;
-      compile_attr_name_open = $3;
-      compile_attr_names = $4;
-      compile_attr_name_close = $5;
-      compile_attr_close = $6;
-      compile_attr_dot = $7;
+      compile_attr_value = $3;
+      compile_attr_close = $4;
+      compile_attr_dot = $5;
     }
   }
 
