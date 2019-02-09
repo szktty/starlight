@@ -365,7 +365,7 @@ spec_clause:
       spec_clause_return = $4;
       spec_clause_guard = None; })
   }
-  | LPAREN RPAREN RARROW spec_type WHEN guard
+  | LPAREN RPAREN RARROW spec_type WHEN spec_guard
   { Ast_t.({
       spec_clause_open = $1;
       spec_clause_args = None;
@@ -383,7 +383,7 @@ spec_clause:
       spec_clause_return = $5;
       spec_clause_guard = None; })
   }
-  | LPAREN spec_args RPAREN RARROW spec_type WHEN guard
+  | LPAREN spec_args RPAREN RARROW spec_type WHEN spec_guard
   { Ast_t.({
       spec_clause_open = $1;
       spec_clause_args = Some $2;
@@ -402,6 +402,22 @@ rev_spec_args:
 
 spec_arg:
   | spec_type { $1 }
+
+spec_guard:
+  | rev_spec_guard { Seplist.rev $1 }
+
+rev_spec_guard:
+  | spec_guard_type { Seplist.one $1 }
+  | rev_spec_guard COMMA spec_guard_type
+  { Seplist.cons $3 ~sep:$2 $1 }
+
+spec_guard_type:
+  | UIDENT COLON2 spec_type
+  { {
+      Ast_t.ty_constr_name = $1;
+      ty_constr_type = Some ($2, $3);
+    }
+  }
 
 spec_type:
   | raw_atom { Ast_t.Ty_atom $1 }
@@ -430,11 +446,16 @@ spec_type:
   { Ast_t.Ty_macro ($1, $2) }
 
 spec_type_constraint:
+  | UIDENT
+  { Ast_t.Ty_constr {
+      ty_constr_name = $1;
+      ty_constr_type = None;
+    }
+  }
   | UIDENT COLON2 spec_type
   { Ast_t.Ty_constr {
       ty_constr_name = $1;
-      ty_constr_colon = $2;
-      ty_constr_type = $3;
+      ty_constr_type = Some ($2, $3);
     }
   }
 

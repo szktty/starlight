@@ -63,6 +63,13 @@ let rec to_sexp = function
     in
     Sexp.tagged "record-attr"
       [Sexp.Atom attr.rec_attr_name.desc; Sexp.List fields]
+  | Spec_attr attr ->
+    Sexp.tagged "spec-attr" (concat_opts [
+        Option.map attr.spec_attr_mname
+          ~f:(fun (name, _) -> Sexp.Atom name.desc);
+        Some (Sexp.Atom attr.spec_attr_fname.desc);
+        Some (spec_claus_to_sexp (extract attr.spec_attr_clauses));
+      ])
   | Fun_decl decl ->
     Sexp.tagged "fun_decl" (sexp_fun_body decl.fun_decl_body)
   | Case case ->
@@ -200,6 +207,76 @@ and sexp_fun_body body =
           Sexp.List guard;
           exps] :: accu)
   |> List.rev
+
+and spec_claus_to_sexp claus =
+  Sexp.List
+    (List.map claus
+       ~f:(fun clau ->
+           let args =
+             Option.value_map clau.spec_clause_args
+               ~default:[]
+               ~f:(fun args ->
+                   let args = List.map (extract args) ~f:type_to_sexp in
+                   [Sexp.List args]) in
+           let ret = type_to_sexp clau.spec_clause_return in
+           let guard =
+             Option.map clau.spec_clause_guard
+               ~f:(fun (_, constrs) ->
+                   spair "guard" ( spec_guard_to_sexp constrs)) in
+           sconcat [Some (Sexp.tagged "args" args);
+                    Some (Sexp.tagged "return" [ret]);
+                    guard]))
+
+and spec_guard_to_sexp constrs =
+  List.map (extract constrs)
+    ~f:type_constr_to_sexp
+  |> slist
+
+and type_constr_to_sexp constr =
+  slist [Sexp.Atom constr.ty_constr_name.desc;
+         Option.value_exn constr.ty_constr_type
+         |> Tuple2.get2
+         |> type_to_sexp]
+
+and type_to_sexp ty =
+  let tag, value = 
+    match ty with
+        (*
+    | Ty_paren of type_ enclosed
+    | Ty_atom of atom
+         *)
+    | Ty_int text -> "int", Sexp.Atom text.desc
+    (* 
+    | Ty_range of type_range
+    | Ty_nil of (token * token)
+     *)
+    | Ty_named ty ->
+      let tag = Option.value_map ty.ty_named_module
+          ~default:""
+          ~f:(fun name -> name.desc ^ ":") ^
+                ty.ty_named_name.desc
+      in
+      let args = Option.value_map ty.ty_named_args
+          ~default:[]
+          ~f:(fun args ->
+              List.map (extract args)
+                ~f:type_to_sexp)
+      in
+      tag, Sexp.List args
+    (* 
+    | Ty_bits of type_bits
+    | Ty_list of type_ enclosed
+    | Ty_tuple of type_ node_list option enclosed
+    | Ty_fun of type_fun
+    | Ty_map of type_map
+    | Ty_record of type_record
+    | Ty_union of type_union
+    | Ty_constr of type_constr
+    | Ty_macro of token * text
+      *)
+    | _ -> "unknown", (Sexp.Atom "<notimpl>")
+  in
+  spair ("type-" ^ tag) value
 
 and cr_claus_to_sexp claus =
   Sexp.List

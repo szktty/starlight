@@ -228,7 +228,7 @@ and spec_clause = {
   spec_clause_close : token;
   spec_clause_arrow : token;
   spec_clause_return : type_;
-  spec_clause_guard : (token * guard) option;
+  spec_clause_guard : (token * type_constr node_list) option;
 }
 
 and type_attr = {
@@ -619,6 +619,5 @@ and type_union = {
 
 and type_constr = {
   ty_constr_name : text;
-  ty_constr_colon : token;
-  ty_constr_type : type_;
+  ty_constr_type : (token * type_) option;
 }
