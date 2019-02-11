@@ -241,15 +241,13 @@ and type_constr_to_sexp constr =
 and type_to_sexp ty =
   let tag, value = 
     match ty with
-        (*
-    | Ty_paren of type_ enclosed
-    | Ty_atom of atom
-         *)
+    | Ty_paren ty -> "paren", type_to_sexp ty.enc_desc
+    | Ty_atom name -> "atom", Sexp.Atom (text_of_atom name).desc
     | Ty_int text -> "int", Sexp.Atom text.desc
-    (* 
-    | Ty_range of type_range
-    | Ty_nil of (token * token)
-     *)
+    | Ty_range ty ->
+      "range", Sexp.List [Sexp.Atom ty.ty_range_start.desc;
+                          Sexp.Atom ty.ty_range_end.desc]
+    | Ty_nil _ -> "nil", Sexp.List []
     | Ty_named ty ->
       let tag = Option.value_map ty.ty_named_module
           ~default:""
@@ -263,20 +261,87 @@ and type_to_sexp ty =
                 ~f:type_to_sexp)
       in
       tag, Sexp.List args
-    (* 
-    | Ty_bits of type_bits
-    | Ty_list of type_ enclosed
-    | Ty_tuple of type_ node_list option enclosed
-    | Ty_fun of type_fun
-    | Ty_map of type_map
-    | Ty_record of type_record
-    | Ty_union of type_union
-    | Ty_constr of type_constr
-    | Ty_macro of token * text
-      *)
-    | _ -> "unknown", (Sexp.Atom "<notimpl>")
+    | Ty_bits ty ->
+      let open Buffer in
+      let buf = create 16 in
+      let add_text text = add_string buf text.desc in
+      add_string buf "<<";
+      begin match ty.ty_bits_start_uscore, ty.ty_bits_start_bits with
+        | Some uscore, Some bits ->
+          add_string buf (sprintf "%s:%s" uscore.desc bits.desc)
+        | _ -> ()
+      end;
+      Option.iter ty.ty_bits_comma ~f:(fun _ -> add_string buf ",");
+      Option.iter ty.ty_bits_cont_uscore1 ~f:add_text;
+      Option.iter ty.ty_bits_cont_colon ~f:(fun _ -> add_string buf ":");
+      Option.iter ty.ty_bits_cont_uscore2 ~f:add_text;
+      Option.iter ty.ty_bits_cont_mul ~f:(fun _ -> add_string buf "*");
+      Option.iter ty.ty_bits_cont_bits ~f:add_text;
+      add_string buf ">>";
+      "bits", Sexp.Atom (contents buf)
+    | Ty_list ty -> "list", type_to_sexp ty.enc_desc
+    | Ty_tuple ty ->
+      "tuple",
+      Sexp.List (Option.value_map ty.enc_desc
+                   ~default:[]
+                   ~f:(fun nodes ->
+                       extract nodes
+                       |> List.map ~f:type_to_sexp))
+    | Ty_fun ty ->
+      "fun",
+      Option.value_map ty.ty_fun_body
+        ~default:(Sexp.List [])
+        ~f:type_fun_body_to_sexp
+    | Ty_map ty ->
+      "map",
+      Option.value_map ty.ty_map_pairs
+        ~default:[]
+        ~f:(fun pairs ->
+            List.map (extract pairs)
+              ~f:(fun pair ->
+                  slist [type_to_sexp pair.ty_pair_left;
+                         type_to_sexp pair.ty_pair_right ]))
+      |> slist
+    | Ty_record ty ->
+      let field_to_sexp field =
+        sconcat [Some (spair "name" (Sexp.Atom field.ty_field_name.desc));
+                 Option.map field.ty_field_init
+                   ~f:(fun init -> spair "init" (to_sexp init))]
+      in
+      "record",
+      slist [spair "name" (Sexp.Atom ty.ty_rec_name.desc);
+             spair "fields"
+               ((Option.value_map ty.ty_rec_fields
+                   ~default:[]
+                   ~f:(fun fields ->
+                       List.map (extract fields) ~f:field_to_sexp))
+                |> slist)]
+    | Ty_union ty ->
+      "union",
+      slist [type_to_sexp ty.ty_union_left;
+             type_to_sexp ty.ty_union_right]
+    | Ty_constr constr ->
+      "constr", sconcat [
+        Some (satom constr.ty_constr_name.desc);
+        Option.map constr.ty_constr_type
+          ~f:(fun (_, ty) -> type_to_sexp ty)]
+    | Ty_macro (_, text) -> "macro", Sexp.Atom text.desc
   in
   spair ("type-" ^ tag) value
+
+and type_fun_body_to_sexp body =
+  sconcat [
+    Option.map body.ty_fun_body_name
+      ~f:(fun name -> Sexp.Atom name.desc);
+    begin match body.ty_fun_body_args with
+      | `None -> None
+      | `Dot _ -> Some (spair "args" (Sexp.Atom "..."))
+      | `Types args ->
+        Some (spair "args"
+                (Sexp.List (List.map (extract args) ~f:type_to_sexp)))
+    end;
+    Some (spair "return" (type_to_sexp body.ty_fun_body_type))
+  ]
 
 and cr_claus_to_sexp claus =
   Sexp.List
