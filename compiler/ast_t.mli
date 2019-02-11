@@ -64,6 +64,7 @@ type t =
   | Compile_attr of compile_attr
   | Export_attr of export_attr
   | Export_type_attr of export_attr
+  | File_attr of file_attr
   | Import_attr of import_attr
   | Include_attr of include_attr
   | Inclib_attr of inclib_attr
@@ -160,6 +161,16 @@ and export_attr = {
   export_attr_fun_close : token;
   export_attr_close : token;
   export_attr_dot : token;
+}
+
+and file_attr = {
+  file_attr_tag : text;
+  file_attr_open : token;
+  file_attr_path : text;
+  file_attr_comma : token;
+  file_attr_line : text;
+  file_attr_close : token;
+  file_attr_dot : token;
 }
 
 and import_attr = {

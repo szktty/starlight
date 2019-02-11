@@ -53,6 +53,7 @@ let rec start_pos node =
   | Compile_attr attr -> of_text attr.compile_attr_tag
   | Export_attr attr -> of_text attr.export_attr_tag
   | Export_type_attr attr -> of_text attr.export_attr_tag
+  | File_attr attr -> of_text attr.file_attr_tag
   | Import_attr attr -> of_text attr.import_attr_tag
   | Include_attr attr -> of_text attr.include_attr_tag
   | Inclib_attr attr -> of_text attr.inclib_attr_tag
@@ -144,6 +145,7 @@ let rec end_pos node =
   | Compile_attr attr -> attr.compile_attr_dot.end_
   | Export_attr attr -> attr.export_attr_dot.end_
   | Export_type_attr attr -> attr.export_attr_dot.end_
+  | File_attr attr -> attr.file_attr_dot.end_
   | Import_attr attr -> attr.import_attr_dot.end_
   | Include_attr attr -> attr.include_attr_dot.end_
   | Inclib_attr attr -> attr.inclib_attr_dot.end_

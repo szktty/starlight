@@ -35,6 +35,11 @@ let rec to_sexp = function
       (List.map (Seplist.values attr.export_attr_funs)
          ~f:(fun fsig -> Sexp.List [Sexp.Atom fsig.fun_sig_name.desc;
                                     Sexp.Atom fsig.fun_sig_arity.desc]))
+  | File_attr attr ->
+    Sexp.tagged "file-attr" [
+      Sexp.Atom attr.file_attr_path.desc;
+      Sexp.Atom attr.file_attr_line.desc;
+    ]
   | Flow_macro_attr attr ->
     let tag = match attr.flow_macro_attr_tag_type with
       | `Undef -> "undef-attr"

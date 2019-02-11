@@ -30,6 +30,7 @@ let paren open_ value close =
 %token <Ast_t.text> DEPR_ATTR        (* "-deprecated" *)
 %token <Ast_t.text> EXPORT_ATTR      (* "-export" *)
 %token <Ast_t.text> EXPORT_TYPE_ATTR (* "-export_type" *)
+%token <Ast_t.text> FILE_ATTR        (* "-file" *)
 %token <Ast_t.text> IMPORT_ATTR      (* "-import" *)
 %token <Ast_t.text> INCLUDE_ATTR     (* "-include" *)
 %token <Ast_t.text> INCLIB_ATTR      (* "-include_lib" *)
@@ -151,6 +152,7 @@ module_attr:
   | compile_attr { $1 }
   | export_attr { $1 }
   | export_type_attr { $1 }
+  | file_attr { $1 }
   | import_attr { $1 }
   | include_attr { $1 }
   | include_lib_attr { $1 }
@@ -247,6 +249,19 @@ fun_sig:
       Ast_t.fun_sig_name = $1;
       fun_sig_sep = $2;
       fun_sig_arity = $3;
+    }
+  }
+
+file_attr:
+  | FILE_ATTR LPAREN STRING COMMA INT RPAREN DOT
+  { Ast_t.File_attr {
+      file_attr_tag = $1;
+      file_attr_open = $2;
+      file_attr_path = $3;
+      file_attr_comma = $4;
+      file_attr_line = $5;
+      file_attr_close = $6;
+      file_attr_dot = $7;
     }
   }
 

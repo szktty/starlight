@@ -141,6 +141,7 @@ rule read =
   | attr "deprecated" { DEPR_ATTR (to_word lexbuf) }
   | attr "export" { EXPORT_ATTR (to_word lexbuf) }
   | attr "export_type" { EXPORT_TYPE_ATTR (to_word lexbuf) }
+  | attr "file" { FILE_ATTR (to_word lexbuf) }
   | attr "import" { IMPORT_ATTR (to_word lexbuf) }
   | attr "include"{ INCLUDE_ATTR (to_word lexbuf) }
   | attr "include_lib"{ INCLIB_ATTR (to_word lexbuf) }
