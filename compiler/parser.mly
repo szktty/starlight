@@ -1113,6 +1113,7 @@ shift_op:
   | LXOR { create $1 Ast_t.Op_lxor }
   | LSHIFT { create $1 Ast_t.Op_lshift }
   | RSHIFT { create $1 Ast_t.Op_rshift }
+  | OR { create $1 Ast_t.Op_or }
 
 mul_exp:
   | mul_exp mul_op prefix_exp { binexp $1 $2 $3 }
