@@ -121,7 +121,9 @@ let paren open_ value close =
 %left ORELSE
 %left ANDALSO
 %right PLUS2 MINUS2
-%left PLUS MINUS
+%left PLUS MINUS BOR BXOR BSL BSR OR XOR
+%left DIV MUL QUO REM BAND AND
+%nonassoc BNOT NOT
 %nonassoc SEMI
 %nonassoc NSIGN
 %nonassoc COLON
