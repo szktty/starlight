@@ -51,6 +51,12 @@ let rec to_sexp = function
     Sexp.Atom (match attr.flow_attr_tag_type with
         | `Else -> "else-attr"
         | `Endif -> "endif-attr")
+  | Import_attr attr ->
+    Sexp.tagged "import-attr" [
+      spair "module" (Sexp.Atom attr.import_attr_module.desc);
+      Sexp.tagged "import"
+        (List.map (extract attr.import_attr_funs) ~f:fun_sig_to_sexp)
+    ]
   | Include_attr attr ->
     Sexp.tagged "include-attr" [Sexp.Atom attr.include_attr_file.desc]
   | Record_attr attr ->
@@ -191,6 +197,9 @@ and to_sexp_list list =
 and to_sexp_seplist list =
   Seplist.values list
   |> List.map ~f:to_sexp
+
+and fun_sig_to_sexp fsig =
+  Sexp.Atom (sprintf "%s/%s" fsig.fun_sig_name.desc fsig.fun_sig_arity.desc)
 
 and sexp_fun_body body =
   Seplist.values body
