@@ -438,6 +438,7 @@ spec_guard_type:
 
 spec_type:
   | raw_atom { Ast_t.Ty_atom $1 }
+  | USCORE { Ast_t.Ty_any }
   | spec_type_constraint { $1 }
   | spec_type_named { $1 }
   | spec_type_list { $1 }

@@ -533,6 +533,7 @@ and exp_list = t node_list
 
 and type_ =
   | Ty_paren of type_ enclosed
+  | Ty_any
   | Ty_atom of atom
   | Ty_int of text
   | Ty_range of type_range

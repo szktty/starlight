@@ -254,6 +254,7 @@ and type_to_sexp ty =
   let tag, value = 
     match ty with
     | Ty_paren ty -> "paren", type_to_sexp ty.enc_desc
+    | Ty_any -> "any", Sexp.List []
     | Ty_atom name -> "atom", Sexp.Atom (text_of_atom name).desc
     | Ty_int text -> "int", Sexp.Atom text.desc
     | Ty_range ty ->
